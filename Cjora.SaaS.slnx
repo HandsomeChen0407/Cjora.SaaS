@@ -1,4 +1,5 @@
 <Solution>
   <Project Path="Cjora.SaaS.Core/Cjora.SaaS.Core.csproj" />
   <Project Path="Cjora.SaaS.Sys/Cjora.SaaS.Sys.csproj" />
+  <Project Path="Cjora.SaaS.Sys.Api/Cjora.SaaS.Sys.Api.csproj" />
 </Solution>

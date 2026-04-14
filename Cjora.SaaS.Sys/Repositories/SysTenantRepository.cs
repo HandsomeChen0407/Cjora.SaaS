@@ -20,9 +20,9 @@ public sealed class SysTenantRepository : ISysTenantRepository
     }
 
     /// <inheritdoc />
-    public async Task<SysTenant?> GetByIdAsync(long tenantId, CancellationToken cancellationToken = default)
+    public async Task<SysTenant?> GetByIdAsync(string tenantId, CancellationToken cancellationToken = default)
     {
-        if (tenantId <= 0)
+        if (string.IsNullOrWhiteSpace(tenantId))
         {
             return null;
         }

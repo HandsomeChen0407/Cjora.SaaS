@@ -10,7 +10,7 @@ public interface ISysTenantRepository
     /// <summary>
     /// 按主键获取租户。
     /// </summary>
-    Task<SysTenant?> GetByIdAsync(long tenantId, CancellationToken cancellationToken = default);
+    Task<SysTenant?> GetByIdAsync(string tenantId, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// 列出当前连接库中的全部租户行（共享物理库下为全平台列表）。仅限平台/运维场景使用。

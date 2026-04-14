@@ -25,7 +25,7 @@ namespace Cjora.SaaS.Sys.Entities;
 public abstract class SysLongIdTenantAuditedEntity : ITenantScopedEntity, ICreatorOwnedEntity
 {
     /// <summary>主键。</summary>
-    [SugarColumn(ColumnName = "id", IsPrimaryKey = true, IsIdentity = false, IsNullable = false)]
+    [SugarColumn(ColumnName = "id", IsPrimaryKey = true, IsIdentity = true, IsNullable = false)]
     public long Id { get; set; }
 
     /// <inheritdoc />
@@ -51,7 +51,7 @@ public abstract class SysLongIdTenantAuditedEntity : ITenantScopedEntity, ICreat
 public abstract class SysLongIdDepartmentOwnedAuditedEntity : ITenantScopedEntity, IDepartmentScopedEntity, ICreatorOwnedEntity
 {
     /// <summary>主键。</summary>
-    [SugarColumn(ColumnName = "id", IsPrimaryKey = true, IsIdentity = false, IsNullable = false)]
+    [SugarColumn(ColumnName = "id", IsPrimaryKey = true, IsIdentity = true, IsNullable = false)]
     public long Id { get; set; }
 
     /// <inheritdoc />
@@ -65,6 +65,24 @@ public abstract class SysLongIdDepartmentOwnedAuditedEntity : ITenantScopedEntit
     /// <inheritdoc />
     [SugarColumn(ColumnName = "creator_user_id", IsNullable = false)]
     public long CreatorUserId { get; set; }
+
+    /// <summary>创建时间（UTC）。</summary>
+    [SugarColumn(ColumnName = "created_at_utc", IsNullable = false)]
+    public DateTime CreatedAtUtc { get; set; }
+
+    /// <summary>更新时间（UTC）。</summary>
+    [SugarColumn(ColumnName = "updated_at_utc", IsNullable = true)]
+    public DateTime? UpdatedAtUtc { get; set; }
+}
+
+/// <summary>
+/// 租户注册表使用的字符串主键与 UTC 审计字段基类（无 <see cref="ITenantScopedEntity"/>）。
+/// </summary>
+public abstract class SysStringIdAuditedEntity
+{
+    /// <summary>主键，与业务表 <c>tenant_id</c> 同源。</summary>
+    [SugarColumn(ColumnName = "id", IsPrimaryKey = true, Length = 64, IsNullable = false)]
+    public string Id { get; set; } = "";
 
     /// <summary>创建时间（UTC）。</summary>
     [SugarColumn(ColumnName = "created_at_utc", IsNullable = false)]
