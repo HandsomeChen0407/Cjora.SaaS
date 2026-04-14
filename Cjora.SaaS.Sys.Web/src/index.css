@@ -1,0 +1,192 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@font-face {
+  font-family: "Poppins-Regular_6";
+  src: url("/fonts/Poppins-Regular_6.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@theme inline {
+  --font-sans: var(--fontSans);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --shadow-x: var(--shadow-x);
+  --shadow-y: var(--shadow-y);
+  --shadow-blur: var(--shadow-blur);
+  --shadow-spread: var(--shadow-spread);
+  --shadow-color: var(--shadow-color);
+  --shadow-custom: var(--shadow-x) var(--shadow-y) var(--shadow-blur) var(--shadow-spread) var(--shadow-color);
+}
+
+:root {
+  --fontSans: "Poppins-Regular_6", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --radius: 0.5rem;
+  --background: #f0f2f5;
+  --foreground: #1a2236;
+  --card: #ffffff;
+  --card-foreground: #1a2236;
+  --popover: #ffffff;
+  --popover-foreground: #1a2236;
+  --primary: #1b5de8;
+  --primary-foreground: #ffffff;
+  --secondary: #e8f0fe;
+  --secondary-foreground: #1b5de8;
+  --muted: #f5f7fa;
+  --muted-foreground: #8c94a6;
+  --accent: #eef3fd;
+  --accent-foreground: #1b5de8;
+  --destructive: #e53e3e;
+  --destructive-foreground: #ffffff;
+  --border: #e4e8f0;
+  --input: #e4e8f0;
+  --ring: #b3c8f5;
+  --chart-1: #1b5de8;
+  --chart-2: #52c41a;
+  --chart-3: #faad14;
+  --chart-4: #eb2f96;
+  --chart-5: #13c2c2;
+  --success: #52c41a;
+  --success-foreground: #ffffff;
+  --warning: #faad14;
+  --warning-foreground: #ffffff;
+  --sidebar: #0f1f3d;
+  --sidebar-foreground: rgba(255, 255, 255, 0.85);
+  --sidebar-primary: #1b5de8;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: rgba(255, 255, 255, 0.08);
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: rgba(255, 255, 255, 0.08);
+  --sidebar-ring: rgba(255, 255, 255, 0.2);
+  --shadow-color: rgba(0, 0, 0, 0.08);
+  --shadow-x: 0px;
+  --shadow-y: 2px;
+  --shadow-blur: 8px;
+  --shadow-spread: 0px;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground font-sans;
+  }
+}
+
+@layer utilities {
+  .shadow-custom {
+    box-shadow: var(--shadow-x) var(--shadow-y) var(--shadow-blur) var(--shadow-spread) var(--shadow-color);
+  }
+  .sidebar-item-active {
+    background: rgba(27, 93, 232, 0.18);
+    color: #ffffff;
+    border-right: 3px solid #1b5de8;
+  }
+  .sidebar-item-hover:hover {
+    background: rgba(255, 255, 255, 0.06);
+  }
+  .table-row-hover:hover {
+    background: #f5f7fa;
+  }
+  .status-online {
+    background: #e6f7e6;
+    color: #389e0d;
+  }
+  .status-offline {
+    background: #f5f5f5;
+    color: #8c8c8c;
+  }
+  .status-alarm {
+    background: #fff2e8;
+    color: #d4380d;
+  }
+  .status-warning {
+    background: #fffbe6;
+    color: #d48806;
+  }
+  /* ===== 电池资产状态 ===== */
+  .status-instock {
+    background: #e6f7ff;
+    color: #096dd9;
+  }
+  .status-assigned {
+    background: #fffbe6;
+    color: #d48806;
+  }
+  .status-inuse {
+    background: #f6ffed;
+    color: #389e0d;
+  }
+  .status-returned {
+    background: #f5f5f5;
+    color: #595959;
+  }
+  .status-repairing {
+    background: #fff1f0;
+    color: #cf1322;
+  }
+  .status-scrapped {
+    background: #f5f5f5;
+    color: #8c8c8c;
+  }
+  /* ===== 通用工具类 ===== */
+  .bms-card {
+    @apply bg-card rounded-lg p-6;
+    box-shadow: var(--shadow-x) var(--shadow-y) var(--shadow-blur) var(--shadow-spread) var(--shadow-color);
+  }
+  .bms-table-header {
+    background: #fafbfd;
+    border-bottom: 1px solid var(--border);
+  }
+  .bms-btn-primary {
+    @apply bg-primary text-primary-foreground px-4 py-2 rounded-md text-sm font-medium hover:opacity-90 transition-opacity cursor-pointer;
+  }
+  .bms-btn-secondary {
+    @apply bg-muted text-foreground px-4 py-2 rounded-md text-sm font-medium hover:bg-secondary transition-colors cursor-pointer border border-border;
+  }
+  .bms-input {
+    @apply border border-input rounded-md px-3 py-2 text-sm bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-ring;
+  }
+}

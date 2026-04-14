@@ -1,0 +1,159 @@
+{
+  "routes": [
+    {
+      "path": "/",
+      "src": "src/pages/Index.tsx"
+    },
+    {
+      "path": "/alarm",
+      "src": "src/pages/AlarmPage.tsx"
+    },
+    {
+      "path": "/approval-flow",
+      "src": "src/pages/ApprovalFlowPage.tsx"
+    },
+    {
+      "path": "/approval-list",
+      "src": "src/pages/ApprovalListPage.tsx"
+    },
+    {
+      "path": "/battery-archive",
+      "src": "src/pages/BatteryArchivePage.tsx"
+    },
+    {
+      "path": "/battery-detail",
+      "src": "src/pages/BatteryDetailPage.tsx"
+    },
+    {
+      "path": "/battery-model",
+      "src": "src/pages/BatteryModelPage.tsx"
+    },
+    {
+      "path": "/battery-monitor",
+      "src": "src/pages/BatteryMonitorPage.tsx"
+    },
+    {
+      "path": "/charge-analysis",
+      "src": "src/pages/ChargeAnalysisPage.tsx"
+    },
+    {
+      "path": "/customer",
+      "src": "src/pages/CustomerPage.tsx"
+    },
+    {
+      "path": "/dashboard",
+      "src": "src/pages/DashboardPage.tsx"
+    },
+    {
+      "path": "/device-access",
+      "src": "src/pages/DeviceAccessPage.tsx"
+    },
+    {
+      "path": "/device-command",
+      "src": "src/pages/DeviceCommandPage.tsx"
+    },
+    {
+      "path": "/device-group",
+      "src": "src/pages/DeviceGroupPage.tsx"
+    },
+    {
+      "path": "/firmware-manage",
+      "src": "src/pages/FirmwareManagePage.tsx"
+    },
+    {
+      "path": "/firmware-upgrade",
+      "src": "src/pages/FirmwareUpgradePage.tsx"
+    },
+    {
+      "path": "/firmware-version",
+      "src": "src/pages/FirmwareVersionPage.tsx"
+    },
+    {
+      "path": "/health",
+      "src": "src/pages/HealthPage.tsx"
+    },
+    {
+      "path": "/not-found",
+      "src": "src/pages/NotFound.tsx"
+    },
+    {
+      "path": "/project-detail",
+      "src": "src/pages/ProjectDetailPage.tsx"
+    },
+    {
+      "path": "/project",
+      "src": "src/pages/ProjectPage.tsx"
+    },
+    {
+      "path": "/protection-board",
+      "src": "src/pages/ProtectionBoardPage.tsx"
+    },
+    {
+      "path": "/lead",
+      "src": "src/pages/LeadPage.tsx"
+    },
+    {
+      "path": "/opportunity",
+      "src": "src/pages/OpportunityPage.tsx"
+    },
+    {
+      "path": "/contract",
+      "src": "src/pages/ContractPage.tsx"
+    },
+    {
+      "path": "/data-forward",
+      "src": "src/pages/DataForwardPage.tsx"
+    },
+    {
+      "path": "/data-forward-create",
+      "src": "src/pages/DataForwardCreatePage.tsx"
+    },
+    {
+      "path": "/sys-user",
+      "src": "src/pages/sys/SysUserPage.tsx"
+    },
+    {
+      "path": "/sys-dept",
+      "src": "src/pages/sys/SysDeptPage.tsx"
+    },
+    {
+      "path": "/sys-role",
+      "src": "src/pages/sys/SysRolePage.tsx"
+    },
+    {
+      "path": "/sys-permission",
+      "src": "src/pages/sys/SysPermPage.tsx"
+    },
+    {
+      "path": "/sys-dict",
+      "src": "src/pages/sys/SysDictPage.tsx"
+    }
+  ],
+  "components": [
+    {
+      "name": "PageHeader",
+      "src": "src/components/PageHeader.tsx",
+      "route": "/preview/page-header"
+    },
+    {
+      "name": "Pagination",
+      "src": "src/components/Pagination.tsx",
+      "route": "/preview/pagination"
+    },
+    {
+      "name": "Sidebar",
+      "src": "src/components/Sidebar.tsx",
+      "route": "/preview/sidebar"
+    },
+    {
+      "name": "StatCard",
+      "src": "src/components/StatCard.tsx",
+      "route": "/preview/stat-card"
+    },
+    {
+      "name": "StatusBadge",
+      "src": "src/components/StatusBadge.tsx",
+      "route": "/preview/status-badge"
+    }
+  ]
+}

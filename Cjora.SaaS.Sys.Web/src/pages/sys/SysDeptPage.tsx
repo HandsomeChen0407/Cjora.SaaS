@@ -1,0 +1,462 @@
+import { useState } from "react";
+import {
+  Plus,
+  Edit2,
+  Trash2,
+  X,
+  ChevronRight,
+  ChevronDown,
+  Building2,
+  FolderOpen,
+  Folder,
+} from "lucide-react";
+import { toast } from "sonner";
+
+interface DeptNode {
+  id: string;
+  name: string;
+  code: string;
+  parentId: string | null;
+  leader: string;
+  phone: string;
+  sort: number;
+  status: "active" | "disabled";
+  children?: DeptNode[];
+}
+
+const MOCK_DEPTS_FLAT: DeptNode[] = [
+  { id: "1", name: "总公司", code: "HQ", parentId: null, leader: "李总", phone: "021-88880001", sort: 1, status: "active" },
+  { id: "2", name: "技术部", code: "TECH", parentId: "1", leader: "王工", phone: "021-88880002", sort: 1, status: "active" },
+  { id: "3", name: "销售部", code: "SALES", parentId: "1", leader: "张经理", phone: "021-88880003", sort: 2, status: "active" },
+  { id: "4", name: "运营部", code: "OPS", parentId: "1", leader: "赵总监", phone: "021-88880004", sort: 3, status: "active" },
+  { id: "5", name: "财务部", code: "FIN", parentId: "1", leader: "刘主任", phone: "021-88880005", sort: 4, status: "active" },
+  { id: "6", name: "研发组", code: "DEV", parentId: "2", leader: "陈工", phone: "021-88880006", sort: 1, status: "active" },
+  { id: "7", name: "测试组", code: "QA", parentId: "2", leader: "吴组长", phone: "021-88880007", sort: 2, status: "active" },
+  { id: "8", name: "华东区销售", code: "SALES-E", parentId: "3", leader: "孙经理", phone: "021-88880008", sort: 1, status: "active" },
+  { id: "9", name: "华南区销售", code: "SALES-S", parentId: "3", leader: "周经理", phone: "021-88880009", sort: 2, status: "active" },
+  { id: "10", name: "数据运营", code: "DATA-OPS", parentId: "4", leader: "钱工", phone: "021-88880010", sort: 1, status: "disabled" },
+];
+
+function buildTree(nodes: DeptNode[], parentId: string | null = null): DeptNode[] {
+  return nodes
+    .filter((n) => n.parentId === parentId)
+    .sort((a, b) => a.sort - b.sort)
+    .map((n) => ({ ...n, children: buildTree(nodes, n.id) }));
+}
+
+interface FormData {
+  name: string;
+  code: string;
+  parentId: string | null;
+  leader: string;
+  phone: string;
+  sort: number;
+  status: "active" | "disabled";
+}
+
+const defaultForm: FormData = {
+  name: "", code: "", parentId: null, leader: "", phone: "", sort: 1, status: "active",
+};
+
+interface TreeNodeProps {
+  node: DeptNode;
+  depth: number;
+  selected: string | null;
+  expanded: Set<string>;
+  onSelect: (id: string) => void;
+  onToggle: (id: string) => void;
+  onEdit: (node: DeptNode) => void;
+  onDelete: (node: DeptNode) => void;
+  onAddChild: (parentId: string) => void;
+}
+
+const TreeNodeRow = ({
+  node, depth, selected, expanded, onSelect, onToggle, onEdit, onDelete, onAddChild,
+}: TreeNodeProps) => {
+  const hasChildren = (node.children?.length || 0) > 0;
+  const isExpanded = expanded.has(node.id);
+  const isSelected = selected === node.id;
+
+  return (
+    <>
+      <div
+        className={`flex items-center py-2.5 px-3 cursor-pointer rounded-lg mb-0.5 transition-colors group ${isSelected ? "bg-secondary text-secondary-foreground" : "hover:bg-muted"}`}
+        style={{ paddingLeft: `${12 + depth * 20}px` }}
+        onClick={() => onSelect(node.id)}
+      >
+        <button
+          onClick={(e) => { e.stopPropagation(); onToggle(node.id); }}
+          className="mr-1.5 flex-shrink-0 w-4 h-4 flex items-center justify-center"
+        >
+          {hasChildren ? (
+            isExpanded ? <ChevronDown size={13} className="text-muted-foreground" /> : <ChevronRight size={13} className="text-muted-foreground" />
+          ) : (
+            <span className="w-3 h-3" />
+          )}
+        </button>
+        {hasChildren
+          ? <FolderOpen size={15} className={`mr-2 flex-shrink-0 ${isSelected ? "text-secondary-foreground" : "text-primary"}`} />
+          : <Folder size={15} className={`mr-2 flex-shrink-0 ${isSelected ? "text-secondary-foreground" : "text-muted-foreground"}`} />
+        }
+        <span className={`text-sm flex-1 truncate ${isSelected ? "font-medium" : ""}`}>{node.name}</span>
+        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <button
+            onClick={(e) => { e.stopPropagation(); onAddChild(node.id); }}
+            className="p-1 rounded hover:bg-primary/10 transition-colors text-muted-foreground hover:text-primary"
+            title="添加子部门"
+          >
+            <Plus size={12} />
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); onEdit(node); }}
+            className="p-1 rounded hover:bg-primary/10 transition-colors text-muted-foreground hover:text-primary"
+            title="编辑"
+          >
+            <Edit2 size={12} />
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); onDelete(node); }}
+            className="p-1 rounded hover:bg-destructive/10 transition-colors text-muted-foreground hover:text-destructive"
+            title="删除"
+          >
+            <Trash2 size={12} />
+          </button>
+        </div>
+      </div>
+      {isExpanded && node.children?.map((child) => (
+        <TreeNodeRow
+          key={child.id}
+          node={child}
+          depth={depth + 1}
+          selected={selected}
+          expanded={expanded}
+          onSelect={onSelect}
+          onToggle={onToggle}
+          onEdit={onEdit}
+          onDelete={onDelete}
+          onAddChild={onAddChild}
+        />
+      ))}
+    </>
+  );
+};
+
+const SysDeptPage = () => {
+  const [depts, setDepts] = useState<DeptNode[]>(MOCK_DEPTS_FLAT);
+  const [selectedId, setSelectedId] = useState<string | null>("1");
+  const [expanded, setExpanded] = useState<Set<string>>(new Set(["1", "2", "3", "4"]));
+  const [showModal, setShowModal] = useState(false);
+  const [editId, setEditId] = useState<string | null>(null);
+  const [form, setForm] = useState<FormData>(defaultForm);
+  const [deleteTarget, setDeleteTarget] = useState<DeptNode | null>(null);
+
+  const tree = buildTree(depts);
+  const selected = depts.find((d) => d.id === selectedId);
+
+  const toggleExpand = (id: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const openAdd = (parentId: string | null = null) => {
+    setEditId(null);
+    setForm({ ...defaultForm, parentId });
+    setShowModal(true);
+  };
+
+  const openEdit = (node: DeptNode) => {
+    setEditId(node.id);
+    setForm({
+      name: node.name, code: node.code, parentId: node.parentId,
+      leader: node.leader, phone: node.phone, sort: node.sort, status: node.status,
+    });
+    setShowModal(true);
+  };
+
+  const handleSave = () => {
+    if (!form.name.trim()) { toast.error("部门名称不能为空"); return; }
+    if (!form.code.trim()) { toast.error("部门编码不能为空"); return; }
+    if (editId) {
+      setDepts((prev) => prev.map((d) => d.id === editId ? { ...d, ...form } : d));
+      toast.success("部门信息已更新");
+    } else {
+      const newDept: DeptNode = { id: `d${Date.now()}`, ...form };
+      setDepts((prev) => [...prev, newDept]);
+      if (form.parentId) {
+        setExpanded((prev) => new Set([...prev, form.parentId!]));
+      }
+      toast.success("部门创建成功");
+    }
+    setShowModal(false);
+    console.log("[SYS] 部门保存:", form);
+  };
+
+  const handleDelete = (node: DeptNode) => {
+    const hasChild = depts.some((d) => d.parentId === node.id);
+    if (hasChild) { toast.error("请先删除子部门"); setDeleteTarget(null); return; }
+    setDepts((prev) => prev.filter((d) => d.id !== node.id));
+    if (selectedId === node.id) setSelectedId(null);
+    setDeleteTarget(null);
+    toast.success("部门已删除");
+    console.log("[SYS] 删除部门:", node.id);
+  };
+
+  const getParentName = (parentId: string | null) =>
+    parentId ? depts.find((d) => d.id === parentId)?.name || "—" : "无（顶级）";
+
+  return (
+    <div data-cmp="SysDeptPage" className="flex h-full overflow-hidden gap-0">
+      {/* 左侧树 */}
+      <div className="w-72 flex-shrink-0 flex flex-col border-r border-border bg-card">
+        <div className="flex items-center justify-between px-4 py-3.5 border-b border-border">
+          <div className="flex items-center gap-2 font-medium text-sm text-foreground">
+            <Building2 size={15} className="text-primary" />
+            组织架构
+          </div>
+          <button
+            onClick={() => openAdd(null)}
+            className="flex items-center gap-1 text-xs text-primary hover:opacity-80 transition-opacity"
+          >
+            <Plus size={13} />
+            添加
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-2">
+          {tree.map((node) => (
+            <TreeNodeRow
+              key={node.id}
+              node={node}
+              depth={0}
+              selected={selectedId}
+              expanded={expanded}
+              onSelect={setSelectedId}
+              onToggle={toggleExpand}
+              onEdit={openEdit}
+              onDelete={setDeleteTarget}
+              onAddChild={(pid) => openAdd(pid)}
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* 右侧详情 */}
+      <div className="flex-1 overflow-y-auto bg-background p-6">
+        {selected ? (
+          <div className="max-w-2xl">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                  <Building2 size={18} className="text-primary" />
+                  {selected.name}
+                </h2>
+                <p className="text-xs text-muted-foreground mt-1">部门详细信息</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button className="bms-btn-secondary text-xs flex items-center gap-1.5" onClick={() => openEdit(selected)}>
+                  <Edit2 size={12} />
+                  编辑
+                </button>
+                <button
+                  className="text-xs flex items-center gap-1.5 px-3 py-2 rounded-md bg-destructive/10 text-destructive hover:bg-destructive/20 transition-colors"
+                  onClick={() => setDeleteTarget(selected)}
+                >
+                  <Trash2 size={12} />
+                  删除
+                </button>
+              </div>
+            </div>
+
+            <div className="bms-card mb-4">
+              <div className="text-xs font-semibold text-muted-foreground mb-4 uppercase tracking-wider">基本信息</div>
+              <div className="flex flex-wrap gap-x-8 gap-y-4">
+                {[
+                  { label: "部门名称", value: selected.name },
+                  { label: "部门编码", value: selected.code },
+                  { label: "上级部门", value: getParentName(selected.parentId) },
+                  { label: "负责人", value: selected.leader || "—" },
+                  { label: "联系电话", value: selected.phone || "—" },
+                  { label: "排序", value: String(selected.sort) },
+                ].map((item) => (
+                  <div key={item.label} className="w-40">
+                    <div className="text-xs text-muted-foreground mb-1">{item.label}</div>
+                    <div className="text-sm font-medium text-foreground">{item.value}</div>
+                  </div>
+                ))}
+                <div className="w-40">
+                  <div className="text-xs text-muted-foreground mb-1">状态</div>
+                  <span className={`px-2 py-0.5 rounded text-xs font-medium ${selected.status === "active" ? "status-online" : "status-offline"}`}>
+                    {selected.status === "active" ? "启用" : "禁用"}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="bms-card">
+              <div className="flex items-center justify-between mb-4">
+                <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">子部门</div>
+                <button
+                  className="text-xs text-primary hover:opacity-80 flex items-center gap-1"
+                  onClick={() => openAdd(selected.id)}
+                >
+                  <Plus size={12} />
+                  添加子部门
+                </button>
+              </div>
+              {depts.filter((d) => d.parentId === selected.id).length === 0 ? (
+                <div className="text-sm text-muted-foreground py-4 text-center">暂无子部门</div>
+              ) : (
+                <div className="flex flex-col gap-1">
+                  {depts.filter((d) => d.parentId === selected.id).map((child) => (
+                    <div
+                      key={child.id}
+                      className="flex items-center gap-2.5 px-3 py-2 rounded-md bg-muted/40 hover:bg-muted transition-colors cursor-pointer"
+                      onClick={() => setSelectedId(child.id)}
+                    >
+                      <Folder size={14} className="text-muted-foreground" />
+                      <span className="text-sm text-foreground flex-1">{child.name}</span>
+                      <span className="text-xs text-muted-foreground">{child.code}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+            <Building2 size={40} className="mb-3 opacity-30" />
+            <p className="text-sm">请从左侧选择部门查看详情</p>
+          </div>
+        )}
+      </div>
+
+      {/* 删除确认 */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.4)" }}>
+          <div className="bg-card rounded-xl p-6 w-80 shadow-custom">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-destructive/10 flex items-center justify-center">
+                <Trash2 size={18} className="text-destructive" />
+              </div>
+              <div>
+                <div className="font-semibold text-foreground">确认删除</div>
+                <div className="text-xs text-muted-foreground mt-0.5">删除部门将影响关联用户</div>
+              </div>
+            </div>
+            <p className="text-sm text-muted-foreground mb-5">
+              确定要删除部门「<strong className="text-foreground">{deleteTarget.name}</strong>」吗？
+            </p>
+            <div className="flex gap-2 justify-end">
+              <button className="bms-btn-secondary text-xs px-3 py-1.5" onClick={() => setDeleteTarget(null)}>取消</button>
+              <button
+                className="px-3 py-1.5 rounded text-xs font-medium bg-destructive text-destructive-foreground hover:opacity-90 transition-opacity"
+                onClick={() => handleDelete(deleteTarget)}
+              >
+                确认删除
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 新增/编辑弹窗 */}
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.4)" }}>
+          <div className="bg-card rounded-xl w-[480px] shadow-custom flex flex-col">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+              <div className="font-semibold text-foreground">{editId ? "编辑部门" : "新增部门"}</div>
+              <button onClick={() => setShowModal(false)} className="p-1 rounded hover:bg-muted transition-colors">
+                <X size={16} className="text-muted-foreground" />
+              </button>
+            </div>
+            <div className="px-6 py-5 space-y-4">
+              <div className="flex gap-4">
+                <div className="flex-1">
+                  <label className="block text-xs font-medium text-foreground mb-1.5">部门名称 <span className="text-destructive">*</span></label>
+                  <input
+                    className="bms-input w-full"
+                    placeholder="请输入部门名称"
+                    value={form.name}
+                    onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="block text-xs font-medium text-foreground mb-1.5">部门编码 <span className="text-destructive">*</span></label>
+                  <input
+                    className="bms-input w-full"
+                    placeholder="如 TECH"
+                    value={form.code}
+                    onChange={(e) => setForm((p) => ({ ...p, code: e.target.value }))}
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-foreground mb-1.5">上级部门</label>
+                <select
+                  className="bms-input w-full"
+                  value={form.parentId || ""}
+                  onChange={(e) => setForm((p) => ({ ...p, parentId: e.target.value || null }))}
+                >
+                  <option value="">无（顶级部门）</option>
+                  {depts.filter((d) => d.id !== editId).map((d) => (
+                    <option key={d.id} value={d.id}>{d.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex gap-4">
+                <div className="flex-1">
+                  <label className="block text-xs font-medium text-foreground mb-1.5">负责人</label>
+                  <input
+                    className="bms-input w-full"
+                    placeholder="请输入负责人姓名"
+                    value={form.leader}
+                    onChange={(e) => setForm((p) => ({ ...p, leader: e.target.value }))}
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="block text-xs font-medium text-foreground mb-1.5">联系电话</label>
+                  <input
+                    className="bms-input w-full"
+                    placeholder="请输入联系电话"
+                    value={form.phone}
+                    onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))}
+                  />
+                </div>
+              </div>
+              <div className="flex gap-4">
+                <div className="flex-1">
+                  <label className="block text-xs font-medium text-foreground mb-1.5">排序</label>
+                  <input
+                    type="number"
+                    className="bms-input w-full"
+                    value={form.sort}
+                    onChange={(e) => setForm((p) => ({ ...p, sort: Number(e.target.value) }))}
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="block text-xs font-medium text-foreground mb-1.5">状态</label>
+                  <select
+                    className="bms-input w-full"
+                    value={form.status}
+                    onChange={(e) => setForm((p) => ({ ...p, status: e.target.value as "active" | "disabled" }))}
+                  >
+                    <option value="active">启用</option>
+                    <option value="disabled">禁用</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 px-6 py-4 border-t border-border">
+              <button className="bms-btn-secondary" onClick={() => setShowModal(false)}>取消</button>
+              <button className="bms-btn-primary" onClick={handleSave}>{editId ? "保存更改" : "创建部门"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default SysDeptPage;
