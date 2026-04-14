@@ -1,4 +1,5 @@
-using Cjora.SaaS.Core.Repository;
+using Cjora.SaaS.Core.Repository.Abstractions;
+using Cjora.SaaS.Core.Repository.Models;
 using Cjora.SaaS.Sys.Api.Mapping;
 using Cjora.SaaS.Sys.Api.Models;
 using Cjora.SaaS.Sys.Entities;

@@ -1,8 +1,8 @@
-using Cjora.SaaS.Core.DataPermission;
-using Cjora.SaaS.Core.Repository;
+using Cjora.SaaS.Core.DataPermission.Abstractions;
+using Cjora.SaaS.Core.Repository.Abstractions;
 using SqlSugar;
 
-namespace Cjora.SaaS.Core.SqlSugarInfrastructure;
+namespace Cjora.SaaS.Core.SqlSugar.Extensions;
 
 /// <summary>
 /// 在单次查询链上临时移除全局过滤器（管理员跨租户/跨部门运维场景）。
@@ -44,3 +44,4 @@ public static class SqlSugarTenantQueryableExtensions
         return queryable.ClearFilter<ITenantScopedEntity, IDepartmentScopedEntity, ICreatorOwnedEntity>();
     }
 }
+

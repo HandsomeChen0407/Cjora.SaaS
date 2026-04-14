@@ -1,4 +1,4 @@
-namespace Cjora.SaaS.Core.Repository;
+namespace Cjora.SaaS.Core.Repository.Models;
 
 /// <summary>
 /// 分页请求参数（页码从 1 开始，与 SqlSugar 常见约定一致）。
@@ -15,3 +15,4 @@ public sealed class PagedRequest
     /// </summary>
     public int PageSize { get; set; } = 20;
 }
+

@@ -1,5 +1,6 @@
-using Cjora.SaaS.Core.DataPermission;
-using Cjora.SaaS.Core.Repository;
+using Cjora.SaaS.Core.DataPermission.Abstractions;
+using Cjora.SaaS.Core.DataPermission.Enums;
+using Cjora.SaaS.Core.Repository.Abstractions;
 using SqlSugar;
 
 namespace Cjora.SaaS.Sys.Entities;
@@ -10,16 +11,16 @@ namespace Cjora.SaaS.Sys.Entities;
 /// <remarks>
 /// <para>
 /// <see cref="ITenantScopedEntity.TenantId"/>：在宿主已注册 Core 的 SqlSugar 集成（<c>SqlSugarTenantClientFactory</c>）时，插入与更新会通过 AOP 覆盖为当前
-/// <see cref="Cjora.SaaS.Core.MultiTenancy.ITenantProvider"/> 解析的租户标识；调用方<strong>无需</strong>为写入而手动赋值。
+/// <see cref="Cjora.SaaS.Core.MultiTenancy.Abstractions.ITenantProvider"/> 解析的租户标识；调用方<strong>无需</strong>为写入而手动赋值。
 /// </para>
 /// <para>
-/// <see cref="ICreatorOwnedEntity.CreatorUserId"/>：在 <see cref="Cjora.SaaS.Core.SqlSugarInfrastructure.SqlSugarSaaSOptions.AutoFillCreatorUserIdOnInsert"/> 为 <see langword="true"/>（默认）且插入时该列为 <c>0</c> 时，由 Core AOP 写入当前 <see cref="Cjora.SaaS.Core.Auth.ICurrentUser.UserId"/>。
+/// <see cref="ICreatorOwnedEntity.CreatorUserId"/>：在 <see cref="Cjora.SaaS.Core.SqlSugar.Models.SqlSugarSaaSOptions.AutoFillCreatorUserIdOnInsert"/> 为 <see langword="true"/>（默认）且插入时该列为 <c>0</c> 时，由 Core AOP 写入当前 <see cref="Cjora.SaaS.Core.Auth.Abstractions.ICurrentUser.UserId"/>。
 /// </para>
 /// <para>
 /// <see cref="CreatedAtUtc"/> / <see cref="UpdatedAtUtc"/>：仍由业务在保存前赋值，或由宿主统一的审计管线维护。
 /// </para>
 /// <para>
-/// 实现 <see cref="ICreatorOwnedEntity"/> 后，在 <see cref="Cjora.SaaS.Core.DataPermission.DataScopeKind.Self"/> 数据范围下，SqlSugar 全局过滤器会按创建人限制行集（见 Core <c>SqlSugarTenantClientFactory</c>）。
+/// 实现 <see cref="ICreatorOwnedEntity"/> 后，在 <see cref="DataScopeKind.Self"/> 数据范围下，SqlSugar 全局过滤器会按创建人限制行集（见 Core <c>SqlSugarTenantClientFactory</c>）。
 /// </para>
 /// </remarks>
 public abstract class SysLongIdTenantAuditedEntity : ITenantScopedEntity, ICreatorOwnedEntity

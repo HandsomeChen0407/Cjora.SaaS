@@ -1,11 +1,11 @@
-namespace Cjora.SaaS.Core.DataPermission;
+namespace Cjora.SaaS.Core.DataPermission.Enums;
 
 /// <summary>
 /// 行级数据权限范围：在「租户隔离」之上进一步限制用户可见的数据行（部门树、仅本人等）。
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>与多租户的关系</b>：<see cref="Cjora.SaaS.Core.Repository.ITenantScopedEntity"/> 负责物理/逻辑库内的租户边界；
+/// <b>与多租户的关系</b>：<see cref="Cjora.SaaS.Core.Repository.Abstractions.ITenantScopedEntity"/> 负责物理/逻辑库内的租户边界；
 /// 本枚举描述同一租户内「运营/管理员」可见的数据子集，二者通过 SqlSugar <c>QueryFilter</c> 叠加生效。
 /// </para>
 /// <para>

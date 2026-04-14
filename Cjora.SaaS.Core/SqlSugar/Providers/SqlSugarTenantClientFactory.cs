@@ -1,25 +1,19 @@
-using Cjora.SaaS.Core.Auth;
 using Cjora.SaaS.Core.Auth.Abstractions;
-using Cjora.SaaS.Core.DataPermission;
-using Cjora.SaaS.Core.MultiTenancy;
+using Cjora.SaaS.Core.DataPermission.Abstractions;
 using Cjora.SaaS.Core.MultiTenancy.Abstractions;
 using Cjora.SaaS.Core.MultiTenancy.Models;
-using Cjora.SaaS.Core.Repository;
+using Cjora.SaaS.Core.Repository.Abstractions;
+using Cjora.SaaS.Core.SqlSugar.Models;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using SqlSugar;
 
-namespace Cjora.SaaS.Core.SqlSugarInfrastructure;
+namespace Cjora.SaaS.Core.SqlSugar.Providers;
 
 /// <summary>
 /// 按当前 <see cref="ITenantProvider"/> 与 <see cref="ITenantStorageRoutingProvider"/> 创建 Scoped <see cref="ISqlSugarClient"/>，
 /// 并配置全局过滤器与插入/更新 AOP。
 /// </summary>
-/// <remarks>
-/// <para>
-/// 工厂在依赖注入解析时同步等待路由解析；宿主应保证 <see cref="ITenantStorageRoutingProvider.ResolveAsync"/> 快速返回（缓存目录库结果）。
-/// </para>
-/// </remarks>
 public static class SqlSugarTenantClientFactory
 {
     /// <summary>
@@ -65,15 +59,11 @@ public static class SqlSugarTenantClientFactory
         return client;
     }
 
-    /// <summary>
-    /// 注册 SqlSugar 全局 <c>QueryFilter</c>：租户 +（可选）部门/本人数据权限，与 <see cref="IDataPermissionContext"/> 打通。
-    /// </summary>
     private static void ApplyGlobalQueryFilters(
         ISqlSugarClient client,
         ITenantProvider tenantProvider,
         IDataPermissionContext dataPermission)
     {
-        // 接口级过滤器：所有实现 ITenantScopedEntity 的实体在查询/更新/删除（若开启自动过滤器）时附加 TenantId 条件。
         var tenantId = tenantProvider.GetTenantId();
         client.QueryFilter.AddTableFilter<ITenantScopedEntity>(
             entity => entity.TenantId == tenantId,
@@ -86,14 +76,14 @@ public static class SqlSugarTenantClientFactory
 
         switch (dataPermission.Scope)
         {
-            case DataScopeKind.Department:
+            case DataPermission.Enums.DataScopeKind.Department:
                 ApplyDepartmentFilter(client, dataPermission);
                 break;
-            case DataScopeKind.Self:
+            case DataPermission.Enums.DataScopeKind.Self:
                 ApplySelfFilter(client, dataPermission);
                 break;
-            case DataScopeKind.All:
-            case DataScopeKind.Tenant:
+            case DataPermission.Enums.DataScopeKind.All:
+            case DataPermission.Enums.DataScopeKind.Tenant:
             default:
                 break;
         }
@@ -102,7 +92,6 @@ public static class SqlSugarTenantClientFactory
     private static void ApplyDepartmentFilter(ISqlSugarClient client, IDataPermissionContext dataPermission)
     {
         var ids = dataPermission.AccessibleDepartmentIds.ToArray();
-        // 空集合在部分数据库上对 IN () 语法不友好，这里用永假条件表达「无可见部门」。
         if (ids.Length == 0)
         {
             client.QueryFilter.AddTableFilter<IDepartmentScopedEntity>(
@@ -132,16 +121,12 @@ public static class SqlSugarTenantClientFactory
             QueryFilterProvider.FilterJoinPosition.Where);
     }
 
-    /// <summary>
-    /// 插入/更新执行前强制同步 <see cref="ITenantScopedEntity.TenantId"/>，并可自动填充创建人。
-    /// </summary>
     private static void ApplyTenantAndCreatorAop(
         ISqlSugarClient client,
         ITenantProvider tenantProvider,
         IServiceProvider services,
         SqlSugarSaaSOptions options)
     {
-        // SqlSugar 5.x：实体插入/更新使用 DataFilterType.InsertByObject / UpdateByObject；列级事件每个字段各触发一次，适合用 SetValue 写入。
         client.Aop.DataExecuting = (oldValue, entityInfo) =>
         {
             if (entityInfo.OperationType is not (DataFilterType.InsertByObject or DataFilterType.UpdateByObject))
@@ -174,3 +159,4 @@ public static class SqlSugarTenantClientFactory
         };
     }
 }
+

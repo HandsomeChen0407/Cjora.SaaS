@@ -1,5 +1,5 @@
-using Cjora.SaaS.Core.DataPermission;
-using Cjora.SaaS.Core.Repository;
+using Cjora.SaaS.Core.DataPermission.Models;
+using Cjora.SaaS.Core.Repository.Hosting;
 using Cjora.SaaS.Sys.DataPermission;
 using Cjora.SaaS.Sys.Departments;
 using Cjora.SaaS.Sys.Entities;

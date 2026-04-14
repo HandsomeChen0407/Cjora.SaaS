@@ -1,11 +1,11 @@
 using System.Globalization;
 using System.Security.Claims;
-using Cjora.SaaS.Core.DataPermission;
+using Cjora.SaaS.Core.DataPermission.Enums;
 
 namespace Cjora.SaaS.Sys.DataPermission;
 
 /// <summary>
-/// 根据 IAM 解析结果生成供 <see cref="DefaultDataPermissionContext"/> 消费的声明（与 <see cref="SysDataPermissionClaims"/> 对齐）。
+/// 根据 IAM 解析结果生成供 <see cref="Cjora.SaaS.Core.DataPermission.Providers.DefaultDataPermissionContext"/> 消费的声明（与 <see cref="SysDataPermissionClaims"/> 对齐）。
 /// </summary>
 public static class SysDataPermissionClaimBuilder
 {

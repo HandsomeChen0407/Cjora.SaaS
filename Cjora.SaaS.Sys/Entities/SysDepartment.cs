@@ -9,7 +9,7 @@ namespace Cjora.SaaS.Sys.Entities;
 /// <remarks>
 /// <para>公共字段见 <see cref="SysLongIdTenantAuditedEntity"/>。</para>
 /// <para>
-/// 本实体仅实现 <see cref="Cjora.SaaS.Core.Repository.ITenantScopedEntity"/>（通过基类），不实现 <see cref="Cjora.SaaS.Core.DataPermission.IDepartmentScopedEntity"/>：
+/// 本实体仅实现 <see cref="Cjora.SaaS.Core.Repository.Abstractions.ITenantScopedEntity"/>（通过基类），不实现 <see cref="Cjora.SaaS.Core.DataPermission.Abstractions.IDepartmentScopedEntity"/>：
 /// 组织主数据通常按租户全员可见（或另做管理端权限），避免「按部门过滤部门表」导致无法维护整棵树。
 /// </para>
 /// </remarks>

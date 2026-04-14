@@ -3,7 +3,7 @@ using Cjora.SaaS.Sys.Entities;
 namespace Cjora.SaaS.Sys.Departments;
 
 /// <summary>
-/// 在当前租户部门列表上展开子树，用于填充令牌中的 <c>dept_ids</c>（与 <see cref="Cjora.SaaS.Core.DataPermission.IDataPermissionContext.AccessibleDepartmentIds"/> 对应）。
+/// 在当前租户部门列表上展开子树，用于填充令牌中的 <c>dept_ids</c>（与 <see cref="Cjora.SaaS.Core.DataPermission.Abstractions.IDataPermissionContext.AccessibleDepartmentIds"/> 对应）。
 /// </summary>
 public static class SysDepartmentExpansion
 {

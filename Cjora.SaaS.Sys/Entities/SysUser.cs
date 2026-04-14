@@ -28,8 +28,8 @@ public sealed class SysUser : SysLongIdTenantAuditedEntity
     public bool IsActive { get; set; } = true;
 
     /// <summary>
-    /// 所属部门主键，与 <see cref="SysDepartment"/> 的 <see cref="SysLongIdTenantAuditedEntity.Id"/> 及 Core 中 <see cref="Cjora.SaaS.Core.DataPermission.IDepartmentScopedEntity"/> 的部门维度一致；
-    /// 登录颁发令牌时可将本 Id（及按需展开的子部门）写入声明，供 <see cref="Cjora.SaaS.Core.DataPermission.IDataPermissionContext.AccessibleDepartmentIds"/> 使用。
+    /// 所属部门主键，与 <see cref="SysDepartment"/> 的 <see cref="SysLongIdTenantAuditedEntity.Id"/> 及 Core 中 <see cref="Cjora.SaaS.Core.DataPermission.Abstractions.IDepartmentScopedEntity"/> 的部门维度一致；
+    /// 登录颁发令牌时可将本 Id（及按需展开的子部门）写入声明，供 <see cref="Cjora.SaaS.Core.DataPermission.Abstractions.IDataPermissionContext.AccessibleDepartmentIds"/> 使用。
     /// </summary>
     [SugarColumn(ColumnName = "department_id", IsNullable = true)]
     public long? DepartmentId { get; set; }

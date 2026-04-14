@@ -1,4 +1,4 @@
-namespace Cjora.SaaS.Core.Repository;
+namespace Cjora.SaaS.Core.Repository.Models;
 
 /// <summary>
 /// 分页查询结果：包含当页数据与总记录数。
@@ -26,3 +26,4 @@ public sealed class PagedResult<TEntity>
     /// </summary>
     public int PageSize { get; set; }
 }
+

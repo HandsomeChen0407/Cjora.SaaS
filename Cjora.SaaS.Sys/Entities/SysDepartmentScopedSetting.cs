@@ -3,7 +3,7 @@ using SqlSugar;
 namespace Cjora.SaaS.Sys.Entities;
 
 /// <summary>
-/// 按部门划分的租户内配置项，用于在 Sys 模块内<strong>同时体现</strong> Core 的 <see cref="Cjora.SaaS.Core.DataPermission.IDepartmentScopedEntity"/> 与 <see cref="Cjora.SaaS.Core.DataPermission.ICreatorOwnedEntity"/> 能力（具体生效范围由 <see cref="Cjora.SaaS.Core.DataPermission.DataScopeKind"/> 决定）。
+/// 按部门划分的租户内配置项，用于在 Sys 模块内<strong>同时体现</strong> Core 的 <see cref="Cjora.SaaS.Core.DataPermission.Abstractions.IDepartmentScopedEntity"/> 与 <see cref="Cjora.SaaS.Core.DataPermission.Abstractions.ICreatorOwnedEntity"/> 能力（具体生效范围由 <see cref="Cjora.SaaS.Core.DataPermission.Enums.DataScopeKind"/> 决定）。
 /// </summary>
 /// <remarks>
 /// 典型用途：部门级参数、开关；与 <see cref="SysDepartment"/> 主数据区分——本表行受数据权限过滤器约束。

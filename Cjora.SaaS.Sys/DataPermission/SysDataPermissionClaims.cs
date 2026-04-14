@@ -1,9 +1,9 @@
-using Cjora.SaaS.Core.DataPermission;
+using Cjora.SaaS.Core.DataPermission.Models;
 
 namespace Cjora.SaaS.Sys.DataPermission;
 
 /// <summary>
-/// 与 <see cref="DataPermissionClaimOptions"/> 默认值一致的声明类型/取值常量，便于发令牌与 Core 的 <see cref="DefaultDataPermissionContext"/> 对齐。
+/// 与 <see cref="DataPermissionClaimOptions"/> 默认值一致的声明类型/取值常量，便于发令牌与 Core 的 <see cref="Cjora.SaaS.Core.DataPermission.Providers.DefaultDataPermissionContext"/> 对齐。
 /// </summary>
 /// <remarks>
 /// 若宿主自定义了 <see cref="DataPermissionClaimOptions"/>，应使用相同字符串；此处常量与 Core 默认保持同步。

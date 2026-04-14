@@ -1,4 +1,4 @@
-using Cjora.SaaS.Core.SqlSugarInfrastructure;
+using Cjora.SaaS.Core.SqlSugar.Extensions;
 using SqlSugar;
 
 namespace Cjora.SaaS.Sys.SqlSugar;

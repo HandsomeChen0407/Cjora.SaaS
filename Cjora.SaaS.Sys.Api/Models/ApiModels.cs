@@ -1,6 +1,6 @@
 namespace Cjora.SaaS.Sys.Api.Models;
 
-/// <summary>分页结果，与 Core <see cref="Cjora.SaaS.Core.Repository.PagedResult{TEntity}"/> 对齐。</summary>
+/// <summary>分页结果，与 Core <see cref="Cjora.SaaS.Core.Repository.Models.PagedResult{TEntity}"/> 对齐。</summary>
 public sealed class PagedApiResult<T>
 {
     public IReadOnlyList<T> Items { get; init; } = Array.Empty<T>();

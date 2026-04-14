@@ -1,6 +1,7 @@
-using Cjora.SaaS.Core.Repository;
+using Cjora.SaaS.Core.DataPermission.Enums;
+using Cjora.SaaS.Core.Repository.Abstractions;
 
-namespace Cjora.SaaS.Core.DataPermission;
+namespace Cjora.SaaS.Core.DataPermission.Abstractions;
 
 /// <summary>
 /// 标记实体包含「部门」维度，可在 <see cref="DataScopeKind.Department"/> 下由全局过滤器追加 <c>DepartmentId IN (...)</c> 条件。

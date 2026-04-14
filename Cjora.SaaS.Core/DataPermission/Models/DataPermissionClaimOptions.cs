@@ -1,4 +1,6 @@
-namespace Cjora.SaaS.Core.DataPermission;
+using Cjora.SaaS.Core.DataPermission.Enums;
+
+namespace Cjora.SaaS.Core.DataPermission.Models;
 
 /// <summary>
 /// 从声明中解析 <see cref="IDataPermissionContext"/> 时使用的声明类型与默认值。

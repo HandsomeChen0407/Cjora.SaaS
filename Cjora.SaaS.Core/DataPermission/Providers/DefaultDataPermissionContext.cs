@@ -1,9 +1,11 @@
 using System.Globalization;
-using Cjora.SaaS.Core.Auth;
 using Cjora.SaaS.Core.Auth.Abstractions;
+using Cjora.SaaS.Core.DataPermission.Abstractions;
+using Cjora.SaaS.Core.DataPermission.Enums;
+using Cjora.SaaS.Core.DataPermission.Models;
 using Microsoft.Extensions.Options;
 
-namespace Cjora.SaaS.Core.DataPermission;
+namespace Cjora.SaaS.Core.DataPermission.Providers;
 
 /// <summary>
 /// 基于 <see cref="ICurrentUser"/> 与可配置声明名的默认 <see cref="IDataPermissionContext"/> 实现。
@@ -20,16 +22,12 @@ public sealed class DefaultDataPermissionContext : IDataPermissionContext
     private bool? _bypassCache;
     private IReadOnlyList<long>? _deptIdsCache;
 
-    /// <summary>
-    /// 初始化 <see cref="DefaultDataPermissionContext"/>。
-    /// </summary>
     public DefaultDataPermissionContext(ICurrentUser currentUser, IOptions<DataPermissionClaimOptions> claimOptions)
     {
         _currentUser = currentUser;
         _claimOptions = claimOptions.Value;
     }
 
-    /// <inheritdoc />
     public DataScopeKind Scope
     {
         get
@@ -43,7 +41,6 @@ public sealed class DefaultDataPermissionContext : IDataPermissionContext
         }
     }
 
-    /// <inheritdoc />
     public bool BypassRowLevelFilters
     {
         get
@@ -58,10 +55,8 @@ public sealed class DefaultDataPermissionContext : IDataPermissionContext
         }
     }
 
-    /// <inheritdoc />
     public long CurrentUserId => _currentUser.UserId;
 
-    /// <inheritdoc />
     public IReadOnlyList<long> AccessibleDepartmentIds
     {
         get
@@ -127,3 +122,4 @@ public sealed class DefaultDataPermissionContext : IDataPermissionContext
         return list;
     }
 }
+
