@@ -1,4 +1,7 @@
-namespace Cjora.SaaS.Core.MultiTenancy;
+using Cjora.SaaS.Core.MultiTenancy.Abstractions;
+using Cjora.SaaS.Core.MultiTenancy.Models;
+
+namespace Cjora.SaaS.Core.MultiTenancy.Providers;
 
 /// <summary>
 /// 默认的 <see cref="ITenantStorageRoutingProvider"/>：所有租户共享同一物理库，仅用逻辑租户标识区分。
@@ -24,3 +27,4 @@ public sealed class SharedPhysicalDatabaseTenantStorageRoutingProvider : ITenant
         return ValueTask.FromResult(context);
     }
 }
+

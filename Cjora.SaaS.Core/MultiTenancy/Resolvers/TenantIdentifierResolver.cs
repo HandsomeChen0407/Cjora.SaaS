@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
+using Cjora.SaaS.Core.MultiTenancy.Abstractions;
+using Cjora.SaaS.Core.MultiTenancy.Models;
 
-namespace Cjora.SaaS.Core.MultiTenancy;
+namespace Cjora.SaaS.Core.MultiTenancy.Resolvers;
 
 /// <summary>
 /// 默认租户解析：按固定顺序尝试 <b>请求头 → JWT 声明 → 子域名</b>，均未命中则回退 <see cref="TenantOptions.DefaultTenantId"/>。

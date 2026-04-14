@@ -1,6 +1,9 @@
 using Cjora.SaaS.Core.Auth;
+using Cjora.SaaS.Core.Auth.Abstractions;
 using Cjora.SaaS.Core.DataPermission;
 using Cjora.SaaS.Core.MultiTenancy;
+using Cjora.SaaS.Core.MultiTenancy.Abstractions;
+using Cjora.SaaS.Core.MultiTenancy.Models;
 using Cjora.SaaS.Core.Repository;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;

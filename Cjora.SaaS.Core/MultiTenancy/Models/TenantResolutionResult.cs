@@ -1,4 +1,4 @@
-namespace Cjora.SaaS.Core.MultiTenancy;
+namespace Cjora.SaaS.Core.MultiTenancy.Models;
 
 /// <summary>
 /// 表示一次 HTTP 请求的租户解析结果。

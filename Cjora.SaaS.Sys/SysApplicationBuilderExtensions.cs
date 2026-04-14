@@ -1,4 +1,5 @@
 using Cjora.SaaS.Core.Extensions;
+using Cjora.SaaS.Core.MultiTenancy.Hosting;
 using Microsoft.AspNetCore.Builder;
 
 namespace Cjora.SaaS.Sys;

@@ -1,4 +1,4 @@
-namespace Cjora.SaaS.Core.MultiTenancy;
+namespace Cjora.SaaS.Core.MultiTenancy.Models;
 
 /// <summary>
 /// 控制从 HTTP 请求中如何发现租户标识以及默认回退行为的配置项。
@@ -11,7 +11,7 @@ namespace Cjora.SaaS.Core.MultiTenancy;
 public class TenantOptions
 {
     /// <summary>
-    /// 承载租户标识的请求头名称（<see cref="TenantIdentifierResolver"/> 头策略）。
+    /// 承载租户标识的请求头名称（<see cref="Resolvers.TenantIdentifierResolver"/> 头策略）。
     /// </summary>
     /// <value>默认 <c>X-Tenant-Id</c>，常见于网关/BFF 透传。</value>
     public string TenantIdHeaderName { get; set; } = "X-Tenant-Id";

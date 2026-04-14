@@ -1,7 +1,7 @@
-using Cjora.SaaS.Core.MultiTenancy;
+using Cjora.SaaS.Core.MultiTenancy.Middleware;
 using Microsoft.AspNetCore.Builder;
 
-namespace Cjora.SaaS.Core.Extensions;
+namespace Cjora.SaaS.Core.MultiTenancy.Hosting;
 
 /// <summary>
 /// 与本库中间件相关的 <see cref="IApplicationBuilder"/> 扩展。
@@ -18,3 +18,4 @@ public static class ApplicationBuilderExtensions
         return application.UseMiddleware<TenantMiddleware>();
     }
 }
+

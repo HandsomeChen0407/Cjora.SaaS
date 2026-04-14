@@ -1,10 +1,10 @@
-namespace Cjora.SaaS.Core.Auth;
+namespace Cjora.SaaS.Core.Auth.Abstractions;
 
 /// <summary>
 /// 当前执行上下文中的终端用户抽象：典型来源为 HTTP 请求中的 <see cref="System.Security.Claims.ClaimsPrincipal"/>。
 /// </summary>
 /// <remarks>
-/// 实现通常为 Scoped，供 <see cref="DataPermission.IDataPermissionContext"/> 与 SqlSugar 写入侧（如创建人）解析声明。
+/// 实现通常为 Scoped，供 <see cref="DataPermission.Abstractions.IDataPermissionContext"/> 与 SqlSugar 写入侧（如创建人）解析声明。
 /// </remarks>
 public interface ICurrentUser
 {
@@ -46,3 +46,4 @@ public interface ICurrentUser
     /// <returns>转换后的值；无法转换或不存在时为 <c>default</c>。</returns>
     T? FindClaim<T>(string claimType);
 }
+

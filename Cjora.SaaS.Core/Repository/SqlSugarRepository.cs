@@ -1,5 +1,6 @@
 using System.Linq.Expressions;
 using Cjora.SaaS.Core.MultiTenancy;
+using Cjora.SaaS.Core.MultiTenancy.Abstractions;
 using SqlSugar;
 
 namespace Cjora.SaaS.Core.Repository;

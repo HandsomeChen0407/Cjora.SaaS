@@ -1,5 +1,9 @@
 using Cjora.SaaS.Core.Auth;
+using Cjora.SaaS.Core.Auth.Abstractions;
+using Cjora.SaaS.Core.Auth.Providers;
 using Cjora.SaaS.Core.MultiTenancy;
+using Cjora.SaaS.Core.MultiTenancy.Hosting;
+using Cjora.SaaS.Core.MultiTenancy.Models;
 using Cjora.SaaS.Core.SqlSugarInfrastructure;
 using Microsoft.Extensions.DependencyInjection;
 

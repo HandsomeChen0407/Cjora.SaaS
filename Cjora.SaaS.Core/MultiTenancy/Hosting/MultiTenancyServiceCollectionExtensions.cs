@@ -1,6 +1,10 @@
+using Cjora.SaaS.Core.MultiTenancy.Abstractions;
+using Cjora.SaaS.Core.MultiTenancy.Models;
+using Cjora.SaaS.Core.MultiTenancy.Providers;
+using Cjora.SaaS.Core.MultiTenancy.Resolvers;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace Cjora.SaaS.Core.MultiTenancy;
+namespace Cjora.SaaS.Core.MultiTenancy.Hosting;
 
 /// <summary>
 /// 多租户相关服务的依赖注入扩展。
@@ -57,3 +61,4 @@ public static class MultiTenancyServiceCollectionExtensions
         return services;
     }
 }
+

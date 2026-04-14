@@ -1,9 +1,9 @@
 using Microsoft.AspNetCore.Http;
 
-namespace Cjora.SaaS.Core.MultiTenancy;
+namespace Cjora.SaaS.Core.MultiTenancy.Abstractions;
 
 /// <summary>
-/// 从 HTTP 上下文解析租户标识；默认实现为 <see cref="TenantIdentifierResolver"/>（头 → JWT → 子域 → 默认）。
+/// 从 HTTP 上下文解析租户标识；默认实现为 <see cref="Resolvers.TenantIdentifierResolver"/>（头 → JWT → 子域 → 默认）。
 /// </summary>
 public interface ITenantIdentifierResolver
 {
@@ -13,5 +13,5 @@ public interface ITenantIdentifierResolver
     /// <param name="httpContext">HTTP 上下文。</param>
     /// <param name="cancellationToken">取消标记。</param>
     /// <returns>租户标识与来源说明；无匹配时由实现回退默认租户。</returns>
-    ValueTask<TenantResolutionResult> ResolveAsync(HttpContext httpContext, CancellationToken cancellationToken = default);
+    ValueTask<Models.TenantResolutionResult> ResolveAsync(HttpContext httpContext, CancellationToken cancellationToken = default);
 }

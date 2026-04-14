@@ -1,7 +1,10 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
+using Cjora.SaaS.Core.MultiTenancy.Abstractions;
+using Cjora.SaaS.Core.MultiTenancy.Constants;
+using Cjora.SaaS.Core.MultiTenancy.Models;
 
-namespace Cjora.SaaS.Core.MultiTenancy;
+namespace Cjora.SaaS.Core.MultiTenancy.Providers;
 
 /// <summary>
 /// 从 <see cref="Microsoft.AspNetCore.Http.HttpContext.Items"/> 读取 <see cref="TenantMiddleware"/> 写入的租户；

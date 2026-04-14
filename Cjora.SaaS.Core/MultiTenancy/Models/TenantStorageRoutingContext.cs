@@ -1,4 +1,4 @@
-namespace Cjora.SaaS.Core.MultiTenancy;
+namespace Cjora.SaaS.Core.MultiTenancy.Models;
 
 /// <summary>
 /// 描述运行时如何访问某租户持久化数据（共享库、独立连接串、分片键等）。

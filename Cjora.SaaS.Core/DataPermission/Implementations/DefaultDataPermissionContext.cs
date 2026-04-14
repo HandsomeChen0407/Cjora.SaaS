@@ -1,5 +1,6 @@
 using System.Globalization;
 using Cjora.SaaS.Core.Auth;
+using Cjora.SaaS.Core.Auth.Abstractions;
 using Microsoft.Extensions.Options;
 
 namespace Cjora.SaaS.Core.DataPermission;

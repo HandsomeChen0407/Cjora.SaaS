@@ -1,4 +1,4 @@
-namespace Cjora.SaaS.Core.MultiTenancy;
+namespace Cjora.SaaS.Core.MultiTenancy.Constants;
 
 /// <summary>
 /// <see cref="Microsoft.AspNetCore.Http.HttpContext.Items"/> 中与租户相关的键名常量。
