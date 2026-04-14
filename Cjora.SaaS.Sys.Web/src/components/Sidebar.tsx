@@ -1,20 +1,10 @@
 import { useState, useEffect } from "react";
 import {
-  Users,
-  Battery,
-  Upload,
   ChevronDown,
   ChevronRight,
   Zap,
   Menu,
   X,
-  FolderOpen,
-  ClipboardCheck,
-  FileText,
-  Cpu,
-  Server,
-  Wallet,
-  ArrowRightLeft,
   Settings,
 } from "lucide-react";
 
@@ -32,72 +22,6 @@ interface MenuItem {
 
 const menuItems: MenuItem[] = [
   {
-    key: "crm",
-    label: "客户管理",
-    iconName: "users",
-    children: [
-      { key: "lead", label: "客户线索" },
-      { key: "opportunity", label: "商机列表" },
-      { key: "customer", label: "客户列表" },
-    ],
-  },
-  {
-    key: "contract-mgmt",
-    label: "合同管理",
-    iconName: "file-text",
-    children: [
-      { key: "contract", label: "合同列表" },
-    ],
-  },
-  {
-    key: "project-mgmt",
-    label: "项目管理",
-    iconName: "folder",
-    children: [
-      { key: "project", label: "项目列表" },
-    ],
-  },
-  {
-    key: "approval-mgmt",
-    label: "审批管理",
-    iconName: "clipboard",
-    children: [
-      { key: "approval-list", label: "待办审批" },
-      { key: "approval-flow", label: "流程配置" },
-    ],
-  },
-  {
-    key: "battery-tech",
-    label: "电池管理",
-    iconName: "battery",
-    children: [
-      { key: "battery-archive", label: "电池档案" },
-      { key: "battery-model", label: "电池型号" },
-      { key: "protection-board", label: "保护板" },
-      { key: "firmware-manage", label: "固件列表" },
-    ],
-  },
-  {
-    key: "device",
-    label: "设备管理",
-    iconName: "server",
-    children: [
-      { key: "device-group", label: "设备分组" },
-      { key: "device-access", label: "设备接入" },
-      { key: "device-command", label: "指令下发" },
-      { key: "data-forward", label: "数据转发" },
-    ],
-  },
-  {
-    key: "fund-mgmt",
-    label: "资金管理",
-    iconName: "wallet",
-    children: [
-      { key: "payment", label: "收款记录" },
-      { key: "refund",  label: "退款记录" },
-    ],
-  },
-  {
     key: "sys",
     label: "系统管理",
     iconName: "settings",
@@ -112,27 +36,16 @@ const menuItems: MenuItem[] = [
 ];
 
 const IconMap: Record<string, React.FC<{ size?: number; className?: string }>> = {
-  users: Users,
-  battery: Battery,
-  ota: Upload,
-  folder: FolderOpen,
-  clipboard: ClipboardCheck,
-  "file-text": FileText,
-  cpu: Cpu,
-  server: Server,
-  wallet: Wallet,
   settings: Settings,
 };
 
 // ====== Desktop Sidebar ======
 const DesktopSidebar = ({
-  currentPage = "dashboard",
+  currentPage = "sys-user",
   onNavigate = () => {},
 }: SidebarProps) => {
   const [collapsed, setCollapsed] = useState(false);
-  const [expandedGroups, setExpandedGroups] = useState<string[]>([
-    "crm", "contract-mgmt", "project-mgmt", "approval-mgmt", "battery-tech", "device", "fund-mgmt", "sys"
-  ]);
+  const [expandedGroups, setExpandedGroups] = useState<string[]>(["sys"]);
 
   const toggleGroup = (key: string) => {
     setExpandedGroups((prev) =>
@@ -292,13 +205,11 @@ const DesktopSidebar = ({
 
 // ====== Mobile Top Bar + Drawer ======
 const MobileSidebar = ({
-  currentPage = "dashboard",
+  currentPage = "sys-user",
   onNavigate = () => {},
 }: SidebarProps) => {
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [expandedGroups, setExpandedGroups] = useState<string[]>([
-    "crm", "contract-mgmt", "project-mgmt", "approval-mgmt", "battery-tech", "device", "fund-mgmt", "sys"
-  ]);
+  const [expandedGroups, setExpandedGroups] = useState<string[]>(["sys"]);
 
   const handleNavigate = (page: string) => {
     onNavigate(page);
@@ -478,7 +389,7 @@ const MobileSidebar = ({
 };
 
 // ====== Main Export ======
-const Sidebar = ({ currentPage = "dashboard", onNavigate = () => {} }: SidebarProps) => {
+const Sidebar = ({ currentPage = "sys-user", onNavigate = () => {} }: SidebarProps) => {
   return (
     <div data-cmp="Sidebar">
       <div className="hidden md:flex h-screen">
