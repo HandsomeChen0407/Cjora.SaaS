@@ -49,6 +49,9 @@ public static class SysServiceCollectionExtensions
         services.AddSqlSugarTenantRepository<SysDepartmentScopedSetting>();
         services.AddSqlSugarTenantRepository<SysRole>();
         services.AddSqlSugarTenantRepository<SysUserRole>();
+        services.AddSqlSugarTenantRepository<SysPermission>();
+        services.AddSqlSugarTenantRepository<SysDictType>();
+        services.AddSqlSugarTenantRepository<SysDictItem>();
         services.AddScoped<ISysDepartmentExpansionService, SysDepartmentExpansionService>();
         services.AddScoped<IEffectivePermissionResolver, EffectivePermissionResolver>();
 

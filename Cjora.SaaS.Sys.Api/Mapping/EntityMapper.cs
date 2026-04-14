@@ -68,6 +68,50 @@ internal static class EntityMapper
             UpdatedAtUtc = ur.UpdatedAtUtc
         };
 
+    public static SysPermissionDto ToDto(this SysPermission p) =>
+        new()
+        {
+            Id = p.Id,
+            ParentId = p.ParentId,
+            Label = p.Label,
+            NodeType = p.NodeType,
+            Path = p.Path,
+            HttpMethod = p.HttpMethod,
+            PermCode = p.PermCode,
+            Icon = p.Icon,
+            SortOrder = p.SortOrder,
+            IsVisible = p.IsVisible,
+            IsActive = p.IsActive
+        };
+
+    public static SysDictTypeDto ToDto(this SysDictType t) =>
+        new()
+        {
+            Id = t.Id,
+            Name = t.Name,
+            Code = t.Code,
+            Category = t.Category,
+            Remark = t.Remark,
+            IsActive = t.IsActive,
+            IsLocked = t.IsLocked,
+            CreatedAtUtc = t.CreatedAtUtc,
+            UpdatedAtUtc = t.UpdatedAtUtc
+        };
+
+    public static SysDictItemDto ToDto(this SysDictItem i) =>
+        new()
+        {
+            Id = i.Id,
+            TypeId = i.TypeId,
+            Label = i.Label,
+            Value = i.Value,
+            SortOrder = i.SortOrder,
+            IsActive = i.IsActive,
+            Remark = i.Remark,
+            CreatedAtUtc = i.CreatedAtUtc,
+            UpdatedAtUtc = i.UpdatedAtUtc
+        };
+
     public static string? ToPermissionCodesJson(IReadOnlyList<string>? codes) =>
         codes is null or { Count: 0 } ? null : PermissionCodesSerializer.Serialize(codes);
 }

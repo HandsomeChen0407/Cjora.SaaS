@@ -56,7 +56,10 @@ using (var scope = app.Services.CreateScope())
         typeof(SysRole),
         typeof(SysDepartment),
         typeof(SysUserRole),
-        typeof(SysDepartmentScopedSetting));
+        typeof(SysDepartmentScopedSetting),
+        typeof(SysPermission),
+        typeof(SysDictType),
+        typeof(SysDictItem));
 
     var tenants = scope.ServiceProvider.GetRequiredService<ISysTenantRepository>();
     if (await tenants.GetByIdAsync("default", CancellationToken.None).ConfigureAwait(false) is null)
