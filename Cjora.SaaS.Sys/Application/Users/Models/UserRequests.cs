@@ -5,17 +5,15 @@ public sealed record CreateUserRequest(
     string DisplayName,
     bool IsActive,
     long? DepartmentId,
-    string? DepartmentName,
     string? ExternalSubjectId,
     string? Email,
-    string? Phone);
+    string? Phone,
+    string? Password);
 
 public sealed record UpdateUserRequest(
     string DisplayName,
     bool IsActive,
     long? DepartmentId,
-    string? DepartmentName,
     string? ExternalSubjectId,
     string? Email,
     string? Phone);
-

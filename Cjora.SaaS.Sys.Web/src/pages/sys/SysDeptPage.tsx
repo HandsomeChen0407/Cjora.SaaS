@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Plus,
   Edit2,
@@ -9,65 +9,35 @@ import {
   Building2,
   FolderOpen,
   Folder,
+  Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
-
-interface DeptNode {
-  id: string;
-  name: string;
-  code: string;
-  parentId: string | null;
-  leader: string;
-  phone: string;
-  sort: number;
-  status: "active" | "disabled";
-  children?: DeptNode[];
-}
-
-const MOCK_DEPTS_FLAT: DeptNode[] = [
-  { id: "1", name: "总公司", code: "HQ", parentId: null, leader: "李总", phone: "021-88880001", sort: 1, status: "active" },
-  { id: "2", name: "技术部", code: "TECH", parentId: "1", leader: "王工", phone: "021-88880002", sort: 1, status: "active" },
-  { id: "3", name: "销售部", code: "SALES", parentId: "1", leader: "张经理", phone: "021-88880003", sort: 2, status: "active" },
-  { id: "4", name: "运营部", code: "OPS", parentId: "1", leader: "赵总监", phone: "021-88880004", sort: 3, status: "active" },
-  { id: "5", name: "财务部", code: "FIN", parentId: "1", leader: "刘主任", phone: "021-88880005", sort: 4, status: "active" },
-  { id: "6", name: "研发组", code: "DEV", parentId: "2", leader: "陈工", phone: "021-88880006", sort: 1, status: "active" },
-  { id: "7", name: "测试组", code: "QA", parentId: "2", leader: "吴组长", phone: "021-88880007", sort: 2, status: "active" },
-  { id: "8", name: "华东区销售", code: "SALES-E", parentId: "3", leader: "孙经理", phone: "021-88880008", sort: 1, status: "active" },
-  { id: "9", name: "华南区销售", code: "SALES-S", parentId: "3", leader: "周经理", phone: "021-88880009", sort: 2, status: "active" },
-  { id: "10", name: "数据运营", code: "DATA-OPS", parentId: "4", leader: "钱工", phone: "021-88880010", sort: 1, status: "disabled" },
-];
-
-function buildTree(nodes: DeptNode[], parentId: string | null = null): DeptNode[] {
-  return nodes
-    .filter((n) => n.parentId === parentId)
-    .sort((a, b) => a.sort - b.sort)
-    .map((n) => ({ ...n, children: buildTree(nodes, n.id) }));
-}
+import { departmentsApi, type DepartmentTreeNode, type DepartmentDto } from "@/api/departments";
 
 interface FormData {
   name: string;
   code: string;
-  parentId: string | null;
+  parentId: number | null;
   leader: string;
   phone: string;
-  sort: number;
-  status: "active" | "disabled";
+  sortOrder: number;
+  isActive: boolean;
 }
 
 const defaultForm: FormData = {
-  name: "", code: "", parentId: null, leader: "", phone: "", sort: 1, status: "active",
+  name: "", code: "", parentId: null, leader: "", phone: "", sortOrder: 1, isActive: true,
 };
 
 interface TreeNodeProps {
-  node: DeptNode;
+  node: DepartmentTreeNode;
   depth: number;
-  selected: string | null;
-  expanded: Set<string>;
-  onSelect: (id: string) => void;
-  onToggle: (id: string) => void;
-  onEdit: (node: DeptNode) => void;
-  onDelete: (node: DeptNode) => void;
-  onAddChild: (parentId: string) => void;
+  selected: number | null;
+  expanded: Set<number>;
+  onSelect: (id: number) => void;
+  onToggle: (id: number) => void;
+  onEdit: (node: DepartmentTreeNode) => void;
+  onDelete: (node: DepartmentTreeNode) => void;
+  onAddChild: (parentId: number) => void;
 }
 
 const TreeNodeRow = ({
@@ -141,19 +111,71 @@ const TreeNodeRow = ({
   );
 };
 
+function flattenTree(nodes: DepartmentTreeNode[]): DepartmentTreeNode[] {
+  const result: DepartmentTreeNode[] = [];
+  for (const n of nodes) {
+    result.push(n);
+    if (n.children) result.push(...flattenTree(n.children));
+  }
+  return result;
+}
+
+function findNodeById(nodes: DepartmentTreeNode[], id: number): DepartmentTreeNode | undefined {
+  for (const n of nodes) {
+    if (n.id === id) return n;
+    if (n.children) {
+      const found = findNodeById(n.children, id);
+      if (found) return found;
+    }
+  }
+  return undefined;
+}
+
+function collectIds(nodes: DepartmentTreeNode[]): number[] {
+  const ids: number[] = [];
+  for (const n of nodes) {
+    ids.push(n.id);
+    if (n.children) ids.push(...collectIds(n.children));
+  }
+  return ids;
+}
+
 const SysDeptPage = () => {
-  const [depts, setDepts] = useState<DeptNode[]>(MOCK_DEPTS_FLAT);
-  const [selectedId, setSelectedId] = useState<string | null>("1");
-  const [expanded, setExpanded] = useState<Set<string>>(new Set(["1", "2", "3", "4"]));
+  const [tree, setTree] = useState<DepartmentTreeNode[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const [showModal, setShowModal] = useState(false);
-  const [editId, setEditId] = useState<string | null>(null);
+  const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState<FormData>(defaultForm);
-  const [deleteTarget, setDeleteTarget] = useState<DeptNode | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<DepartmentTreeNode | null>(null);
 
-  const tree = buildTree(depts);
-  const selected = depts.find((d) => d.id === selectedId);
+  const flatDepts = flattenTree(tree);
+  const selected = selectedId != null ? findNodeById(tree, selectedId) : undefined;
 
-  const toggleExpand = (id: string) => {
+  const fetchTree = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await departmentsApi.getTree();
+      if (res.success && res.data) {
+        setTree(res.data);
+        const allIds = collectIds(res.data);
+        setExpanded(new Set(allIds.slice(0, 10)));
+        if (!selectedId && res.data.length > 0) {
+          setSelectedId(res.data[0].id);
+        }
+      }
+    } catch (e: any) {
+      toast.error("加载部门树失败: " + e.message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchTree(); }, [fetchTree]);
+
+  const toggleExpand = (id: number) => {
     setExpanded((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id); else next.add(id);
@@ -161,51 +183,92 @@ const SysDeptPage = () => {
     });
   };
 
-  const openAdd = (parentId: string | null = null) => {
+  const openAdd = (parentId: number | null = null) => {
     setEditId(null);
     setForm({ ...defaultForm, parentId });
     setShowModal(true);
   };
 
-  const openEdit = (node: DeptNode) => {
+  const openEdit = (node: DepartmentTreeNode) => {
     setEditId(node.id);
     setForm({
-      name: node.name, code: node.code, parentId: node.parentId,
-      leader: node.leader, phone: node.phone, sort: node.sort, status: node.status,
+      name: node.name,
+      code: node.code ?? "",
+      parentId: node.parentId ?? null,
+      leader: node.leader ?? "",
+      phone: node.phone ?? "",
+      sortOrder: node.sortOrder,
+      isActive: node.isActive,
     });
     setShowModal(true);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!form.name.trim()) { toast.error("部门名称不能为空"); return; }
-    if (!form.code.trim()) { toast.error("部门编码不能为空"); return; }
-    if (editId) {
-      setDepts((prev) => prev.map((d) => d.id === editId ? { ...d, ...form } : d));
-      toast.success("部门信息已更新");
-    } else {
-      const newDept: DeptNode = { id: `d${Date.now()}`, ...form };
-      setDepts((prev) => [...prev, newDept]);
-      if (form.parentId) {
-        setExpanded((prev) => new Set([...prev, form.parentId!]));
+
+    setSaving(true);
+    try {
+      if (editId) {
+        const res = await departmentsApi.update(editId, {
+          name: form.name,
+          code: form.code || undefined,
+          parentId: form.parentId ?? undefined,
+          leader: form.leader || undefined,
+          phone: form.phone || undefined,
+          sortOrder: form.sortOrder,
+          isActive: form.isActive,
+        });
+        if (!res.success) { toast.error(res.error ?? "更新失败"); return; }
+        toast.success("部门信息已更新");
+      } else {
+        const res = await departmentsApi.create({
+          name: form.name,
+          code: form.code || undefined,
+          parentId: form.parentId ?? undefined,
+          leader: form.leader || undefined,
+          phone: form.phone || undefined,
+          sortOrder: form.sortOrder,
+          isActive: form.isActive,
+        });
+        if (!res.success) { toast.error(res.error ?? "创建失败"); return; }
+        if (form.parentId) {
+          setExpanded((prev) => new Set([...prev, form.parentId!]));
+        }
+        toast.success("部门创建成功");
       }
-      toast.success("部门创建成功");
+      setShowModal(false);
+      fetchTree();
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setSaving(false);
     }
-    setShowModal(false);
-    console.log("[SYS] 部门保存:", form);
   };
 
-  const handleDelete = (node: DeptNode) => {
-    const hasChild = depts.some((d) => d.parentId === node.id);
-    if (hasChild) { toast.error("请先删除子部门"); setDeleteTarget(null); return; }
-    setDepts((prev) => prev.filter((d) => d.id !== node.id));
-    if (selectedId === node.id) setSelectedId(null);
-    setDeleteTarget(null);
-    toast.success("部门已删除");
-    console.log("[SYS] 删除部门:", node.id);
+  const handleDelete = async (node: DepartmentTreeNode) => {
+    if (node.children && node.children.length > 0) {
+      toast.error("请先删除子部门");
+      setDeleteTarget(null);
+      return;
+    }
+    try {
+      await departmentsApi.del(node.id);
+      if (selectedId === node.id) setSelectedId(null);
+      setDeleteTarget(null);
+      toast.success("部门已删除");
+      fetchTree();
+    } catch (e: any) {
+      toast.error("删除失败: " + e.message);
+    }
   };
 
-  const getParentName = (parentId: string | null) =>
-    parentId ? depts.find((d) => d.id === parentId)?.name || "—" : "无（顶级）";
+  const getParentName = (parentId?: number | null) => {
+    if (!parentId) return "无（顶级）";
+    const node = findNodeById(tree, parentId);
+    return node?.name ?? "—";
+  };
+
+  const childrenOfSelected = selected?.children ?? [];
 
   return (
     <div data-cmp="SysDeptPage" className="flex h-full overflow-hidden gap-0">
@@ -225,20 +288,28 @@ const SysDeptPage = () => {
           </button>
         </div>
         <div className="flex-1 overflow-y-auto p-2">
-          {tree.map((node) => (
-            <TreeNodeRow
-              key={node.id}
-              node={node}
-              depth={0}
-              selected={selectedId}
-              expanded={expanded}
-              onSelect={setSelectedId}
-              onToggle={toggleExpand}
-              onEdit={openEdit}
-              onDelete={setDeleteTarget}
-              onAddChild={(pid) => openAdd(pid)}
-            />
-          ))}
+          {loading ? (
+            <div className="flex items-center justify-center py-16">
+              <Loader2 size={20} className="animate-spin text-muted-foreground" />
+            </div>
+          ) : tree.length === 0 ? (
+            <div className="text-sm text-muted-foreground text-center py-8">暂无部门</div>
+          ) : (
+            tree.map((node) => (
+              <TreeNodeRow
+                key={node.id}
+                node={node}
+                depth={0}
+                selected={selectedId}
+                expanded={expanded}
+                onSelect={setSelectedId}
+                onToggle={toggleExpand}
+                onEdit={openEdit}
+                onDelete={setDeleteTarget}
+                onAddChild={(pid) => openAdd(pid)}
+              />
+            ))
+          )}
         </div>
       </div>
 
@@ -274,11 +345,11 @@ const SysDeptPage = () => {
               <div className="flex flex-wrap gap-x-8 gap-y-4">
                 {[
                   { label: "部门名称", value: selected.name },
-                  { label: "部门编码", value: selected.code },
+                  { label: "部门编码", value: selected.code ?? "—" },
                   { label: "上级部门", value: getParentName(selected.parentId) },
                   { label: "负责人", value: selected.leader || "—" },
                   { label: "联系电话", value: selected.phone || "—" },
-                  { label: "排序", value: String(selected.sort) },
+                  { label: "排序", value: String(selected.sortOrder) },
                 ].map((item) => (
                   <div key={item.label} className="w-40">
                     <div className="text-xs text-muted-foreground mb-1">{item.label}</div>
@@ -287,8 +358,8 @@ const SysDeptPage = () => {
                 ))}
                 <div className="w-40">
                   <div className="text-xs text-muted-foreground mb-1">状态</div>
-                  <span className={`px-2 py-0.5 rounded text-xs font-medium ${selected.status === "active" ? "status-online" : "status-offline"}`}>
-                    {selected.status === "active" ? "启用" : "禁用"}
+                  <span className={`px-2 py-0.5 rounded text-xs font-medium ${selected.isActive ? "status-online" : "status-offline"}`}>
+                    {selected.isActive ? "启用" : "禁用"}
                   </span>
                 </div>
               </div>
@@ -305,11 +376,11 @@ const SysDeptPage = () => {
                   添加子部门
                 </button>
               </div>
-              {depts.filter((d) => d.parentId === selected.id).length === 0 ? (
+              {childrenOfSelected.length === 0 ? (
                 <div className="text-sm text-muted-foreground py-4 text-center">暂无子部门</div>
               ) : (
                 <div className="flex flex-col gap-1">
-                  {depts.filter((d) => d.parentId === selected.id).map((child) => (
+                  {childrenOfSelected.map((child) => (
                     <div
                       key={child.id}
                       className="flex items-center gap-2.5 px-3 py-2 rounded-md bg-muted/40 hover:bg-muted transition-colors cursor-pointer"
@@ -383,7 +454,7 @@ const SysDeptPage = () => {
                   />
                 </div>
                 <div className="flex-1">
-                  <label className="block text-xs font-medium text-foreground mb-1.5">部门编码 <span className="text-destructive">*</span></label>
+                  <label className="block text-xs font-medium text-foreground mb-1.5">部门编码</label>
                   <input
                     className="bms-input w-full"
                     placeholder="如 TECH"
@@ -396,11 +467,11 @@ const SysDeptPage = () => {
                 <label className="block text-xs font-medium text-foreground mb-1.5">上级部门</label>
                 <select
                   className="bms-input w-full"
-                  value={form.parentId || ""}
-                  onChange={(e) => setForm((p) => ({ ...p, parentId: e.target.value || null }))}
+                  value={form.parentId ?? ""}
+                  onChange={(e) => setForm((p) => ({ ...p, parentId: e.target.value ? Number(e.target.value) : null }))}
                 >
                   <option value="">无（顶级部门）</option>
-                  {depts.filter((d) => d.id !== editId).map((d) => (
+                  {flatDepts.filter((d) => d.id !== editId).map((d) => (
                     <option key={d.id} value={d.id}>{d.name}</option>
                   ))}
                 </select>
@@ -431,16 +502,16 @@ const SysDeptPage = () => {
                   <input
                     type="number"
                     className="bms-input w-full"
-                    value={form.sort}
-                    onChange={(e) => setForm((p) => ({ ...p, sort: Number(e.target.value) }))}
+                    value={form.sortOrder}
+                    onChange={(e) => setForm((p) => ({ ...p, sortOrder: Number(e.target.value) }))}
                   />
                 </div>
                 <div className="flex-1">
                   <label className="block text-xs font-medium text-foreground mb-1.5">状态</label>
                   <select
                     className="bms-input w-full"
-                    value={form.status}
-                    onChange={(e) => setForm((p) => ({ ...p, status: e.target.value as "active" | "disabled" }))}
+                    value={form.isActive ? "active" : "disabled"}
+                    onChange={(e) => setForm((p) => ({ ...p, isActive: e.target.value === "active" }))}
                   >
                     <option value="active">启用</option>
                     <option value="disabled">禁用</option>
@@ -450,7 +521,10 @@ const SysDeptPage = () => {
             </div>
             <div className="flex justify-end gap-2 px-6 py-4 border-t border-border">
               <button className="bms-btn-secondary" onClick={() => setShowModal(false)}>取消</button>
-              <button className="bms-btn-primary" onClick={handleSave}>{editId ? "保存更改" : "创建部门"}</button>
+              <button className="bms-btn-primary flex items-center gap-1.5" onClick={handleSave} disabled={saving}>
+                {saving && <Loader2 size={13} className="animate-spin" />}
+                {editId ? "保存更改" : "创建部门"}
+              </button>
             </div>
           </div>
         </div>

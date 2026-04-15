@@ -1,106 +1,101 @@
-using Cjora.SaaS.Core.Repository.Abstractions;
 using Cjora.SaaS.Core.Repository.Models;
+using Cjora.SaaS.Sys.Api.Contracts.Common;
 using Cjora.SaaS.Sys.Api.Mapping;
 using Cjora.SaaS.Sys.Api.Models;
-using Cjora.SaaS.Sys.Entities;
-using Cjora.SaaS.Sys.Repository;
+using Cjora.SaaS.Sys.Application.Departments;
+using Cjora.SaaS.Sys.Application.Departments.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Cjora.SaaS.Sys.Api.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/departments")]
+[Authorize]
 public sealed class DepartmentsController : ControllerBase
 {
-    private readonly IRepository<SysDepartment> _departments;
+    private readonly IDepartmentAppService _departments;
 
-    public DepartmentsController(IRepository<SysDepartment> departments)
+    public DepartmentsController(IDepartmentAppService departments)
     {
         _departments = departments;
     }
 
     [HttpGet]
-    public async Task<ActionResult<PagedApiResult<SysDepartmentDto>>> GetPaged(
-        [FromQuery] int pageNumber = SysPagedRequestDefaults.DefaultPageNumber,
-        [FromQuery] int pageSize = SysPagedRequestDefaults.DefaultPageSize,
+    public async Task<ActionResult<Result<PagedResponse<SysDepartmentDto>>>> GetPaged(
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 20,
         CancellationToken cancellationToken = default)
     {
-        var req = new PagedRequest { PageNumber = pageNumber, PageSize = pageSize };
-        var page = await _departments.GetPagedListAsync(null, req, d => d.SortOrder, true, cancellationToken);
-        return Ok(new PagedApiResult<SysDepartmentDto>
+        var page = await _departments.GetPagedAsync(new PagedRequest { PageNumber = pageNumber, PageSize = pageSize }, cancellationToken);
+        return Ok(Result<PagedResponse<SysDepartmentDto>>.Ok(new PagedResponse<SysDepartmentDto>
         {
             Items = page.Items.Select(static d => d.ToDto()).ToArray(),
             TotalCount = page.TotalCount,
             PageNumber = page.PageNumber,
             PageSize = page.PageSize
-        });
+        }));
+    }
+
+    [HttpGet("tree")]
+    public async Task<ActionResult<Result<IReadOnlyList<SysDepartmentTreeNodeDto>>>> GetTree(CancellationToken cancellationToken)
+    {
+        var tree = await _departments.GetTreeAsync(cancellationToken);
+        return Ok(Result<IReadOnlyList<SysDepartmentTreeNodeDto>>.Ok(
+            tree.Select(static n => n.ToTreeDto()).ToArray()));
     }
 
     [HttpGet("{id:long}")]
-    public async Task<ActionResult<SysDepartmentDto>> GetById(long id, CancellationToken cancellationToken)
+    public async Task<ActionResult<Result<SysDepartmentDto>>> GetById(long id, CancellationToken cancellationToken)
     {
-        var d = await _departments.GetSingleAsync(x => x.Id == id, cancellationToken);
-        return d is null ? NotFound() : Ok(d.ToDto());
+        var d = await _departments.GetByIdAsync(id, cancellationToken);
+        return d is null ? NotFound(Result<SysDepartmentDto>.Fail("NotFound")) : Ok(Result<SysDepartmentDto>.Ok(d.ToDto()));
     }
 
     [HttpPost]
-    public async Task<ActionResult<SysDepartmentDto>> Create([FromBody] SysDepartmentCreateRequest request, CancellationToken cancellationToken)
+    public async Task<ActionResult<Result<SysDepartmentDto>>> Create([FromBody] SysDepartmentCreateRequest request, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(request.Name))
+        try
         {
-            return BadRequest("Name 必填。");
+            var id = await _departments.CreateAsync(
+                new CreateDepartmentRequest(request.ParentId, request.Name, request.Code,
+                    request.SortOrder, request.Leader, request.Phone, request.IsActive),
+                cancellationToken);
+
+            var created = await _departments.GetByIdAsync(id, cancellationToken);
+            return created is null
+                ? Problem("插入后无法读取部门。")
+                : CreatedAtAction(nameof(GetById), new { id }, Result<SysDepartmentDto>.Ok(created.ToDto()));
         }
-
-        var now = DateTime.UtcNow;
-        var entity = new SysDepartment
+        catch (ArgumentException ex)
         {
-            ParentId = request.ParentId,
-            Name = request.Name.Trim(),
-            Code = request.Code,
-            SortOrder = request.SortOrder,
-            Leader = string.IsNullOrWhiteSpace(request.Leader) ? null : request.Leader.Trim(),
-            Phone = string.IsNullOrWhiteSpace(request.Phone) ? null : request.Phone.Trim(),
-            IsActive = request.IsActive,
-            CreatorUserId = 0,
-            CreatedAtUtc = now
-        };
-
-        await _departments.InsertAsync(entity, cancellationToken);
-        var created = await _departments.GetSingleAsync(d => d.Id == entity.Id, cancellationToken);
-        return created is null ? Problem("插入后无法读取部门。") : CreatedAtAction(nameof(GetById), new { id = created.Id }, created.ToDto());
+            return BadRequest(Result<SysDepartmentDto>.Fail(ex.Message));
+        }
     }
 
     [HttpPut("{id:long}")]
-    public async Task<ActionResult<SysDepartmentDto>> Update(long id, [FromBody] SysDepartmentUpdateRequest request, CancellationToken cancellationToken)
+    public async Task<ActionResult<Result<SysDepartmentDto>>> Update(long id, [FromBody] SysDepartmentUpdateRequest request, CancellationToken cancellationToken)
     {
-        var d = await _departments.GetSingleAsync(x => x.Id == id, cancellationToken);
-        if (d is null)
-        {
-            return NotFound();
-        }
+        var ok = await _departments.UpdateAsync(id,
+            new UpdateDepartmentRequest(request.ParentId, request.Name, request.Code,
+                request.SortOrder, request.Leader, request.Phone, request.IsActive),
+            cancellationToken);
 
-        d.ParentId = request.ParentId;
-        d.Name = string.IsNullOrWhiteSpace(request.Name) ? d.Name : request.Name.Trim();
-        d.Code = request.Code;
-        d.SortOrder = request.SortOrder;
-        d.Leader = string.IsNullOrWhiteSpace(request.Leader) ? null : request.Leader.Trim();
-        d.Phone = string.IsNullOrWhiteSpace(request.Phone) ? null : request.Phone.Trim();
-        d.IsActive = request.IsActive;
-        d.UpdatedAtUtc = DateTime.UtcNow;
-        await _departments.UpdateAsync(d, cancellationToken);
-        return Ok(d.ToDto());
+        if (!ok) return NotFound(Result<SysDepartmentDto>.Fail("NotFound"));
+        var updated = await _departments.GetByIdAsync(id, cancellationToken);
+        return updated is null ? NotFound(Result<SysDepartmentDto>.Fail("NotFound")) : Ok(Result<SysDepartmentDto>.Ok(updated.ToDto()));
     }
 
     [HttpDelete("{id:long}")]
     public async Task<IActionResult> Delete(long id, CancellationToken cancellationToken)
     {
-        var d = await _departments.GetSingleAsync(x => x.Id == id, cancellationToken);
-        if (d is null) return NotFound();
-
-        var hasChild = await _departments.GetSingleAsync(x => x.ParentId == id, cancellationToken);
-        if (hasChild is not null) return BadRequest("请先删除子部门。");
-
-        await _departments.DeleteAsync(x => x.Id == id, cancellationToken);
-        return NoContent();
+        try
+        {
+            return await _departments.DeleteAsync(id, cancellationToken) ? NoContent() : NotFound(Result.Fail("NotFound"));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(Result.Fail(ex.Message));
+        }
     }
 }

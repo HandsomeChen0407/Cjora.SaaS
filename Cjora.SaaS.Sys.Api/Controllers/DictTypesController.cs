@@ -1,129 +1,168 @@
-using Cjora.SaaS.Core.Repository.Abstractions;
 using Cjora.SaaS.Core.Repository.Models;
+using Cjora.SaaS.Sys.Api.Contracts.Common;
 using Cjora.SaaS.Sys.Api.Mapping;
 using Cjora.SaaS.Sys.Api.Models;
-using Cjora.SaaS.Sys.Entities;
+using Cjora.SaaS.Sys.Application.Dicts;
+using Cjora.SaaS.Sys.Application.Dicts.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Cjora.SaaS.Sys.Api.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/dict-types")]
+[Authorize]
 public sealed class DictTypesController : ControllerBase
 {
-    private readonly IRepository<SysDictType> _types;
-    private readonly IRepository<SysDictItem> _items;
+    private readonly IDictAppService _dicts;
 
-    public DictTypesController(IRepository<SysDictType> types, IRepository<SysDictItem> items)
+    public DictTypesController(IDictAppService dicts)
     {
-        _types = types;
-        _items = items;
+        _dicts = dicts;
     }
 
     [HttpGet]
-    public async Task<ActionResult<PagedApiResult<SysDictTypeDto>>> GetPaged(
-        [FromQuery] int pageNumber = Cjora.SaaS.Sys.Repository.SysPagedRequestDefaults.DefaultPageNumber,
-        [FromQuery] int pageSize = Cjora.SaaS.Sys.Repository.SysPagedRequestDefaults.DefaultPageSize,
+    public async Task<ActionResult<Result<PagedResponse<SysDictTypeDto>>>> GetPaged(
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 20,
         CancellationToken cancellationToken = default)
     {
-        var req = new PagedRequest { PageNumber = pageNumber, PageSize = pageSize };
-        var page = await _types.GetPagedListAsync(null, req, t => t.Id, true, cancellationToken);
-        return Ok(new PagedApiResult<SysDictTypeDto>
+        var page = await _dicts.GetTypesPagedAsync(new PagedRequest { PageNumber = pageNumber, PageSize = pageSize }, cancellationToken);
+        return Ok(Result<PagedResponse<SysDictTypeDto>>.Ok(new PagedResponse<SysDictTypeDto>
         {
             Items = page.Items.Select(static t => t.ToDto()).ToArray(),
             TotalCount = page.TotalCount,
             PageNumber = page.PageNumber,
             PageSize = page.PageSize
-        });
+        }));
     }
 
     [HttpGet("{id:long}")]
-    public async Task<ActionResult<SysDictTypeDto>> GetById(long id, CancellationToken cancellationToken)
+    public async Task<ActionResult<Result<SysDictTypeDto>>> GetById(long id, CancellationToken cancellationToken)
     {
-        var t = await _types.GetSingleAsync(x => x.Id == id, cancellationToken);
-        return t is null ? NotFound() : Ok(t.ToDto());
+        var t = await _dicts.GetTypeByIdAsync(id, cancellationToken);
+        return t is null ? NotFound(Result<SysDictTypeDto>.Fail("NotFound")) : Ok(Result<SysDictTypeDto>.Ok(t.ToDto()));
     }
 
     [HttpPost]
-    public async Task<ActionResult<SysDictTypeDto>> Create([FromBody] SysDictTypeCreateRequest request, CancellationToken cancellationToken)
+    public async Task<ActionResult<Result<SysDictTypeDto>>> Create([FromBody] SysDictTypeCreateRequest request, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(request.Name) || string.IsNullOrWhiteSpace(request.Code))
+        try
         {
-            return BadRequest("Name 与 Code 必填。");
+            var id = await _dicts.CreateTypeAsync(
+                new CreateDictTypeRequest(request.Name, request.Code, request.Category,
+                    request.Remark, request.IsActive, request.IsLocked),
+                cancellationToken);
+
+            var created = await _dicts.GetTypeByIdAsync(id, cancellationToken);
+            return created is null
+                ? Problem("插入后无法读取字典类型。")
+                : CreatedAtAction(nameof(GetById), new { id }, Result<SysDictTypeDto>.Ok(created.ToDto()));
         }
-
-        if (request.Category is not ("system" or "business"))
+        catch (ArgumentException ex)
         {
-            return BadRequest("Category 仅支持 system 或 business。");
+            return BadRequest(Result<SysDictTypeDto>.Fail(ex.Message));
         }
-
-        var now = DateTime.UtcNow;
-        var entity = new SysDictType
-        {
-            Name = request.Name.Trim(),
-            Code = request.Code.Trim(),
-            Category = request.Category,
-            Remark = string.IsNullOrWhiteSpace(request.Remark) ? null : request.Remark.Trim(),
-            IsActive = request.IsActive,
-            IsLocked = request.IsLocked,
-            CreatorUserId = 0,
-            CreatedAtUtc = now
-        };
-
-        await _types.InsertAsync(entity, cancellationToken);
-        var created = await _types.GetSingleAsync(x => x.Id == entity.Id, cancellationToken);
-        return created is null ? Problem("插入后无法读取字典类型。") : CreatedAtAction(nameof(GetById), new { id = created.Id }, created.ToDto());
     }
 
     [HttpPut("{id:long}")]
-    public async Task<ActionResult<SysDictTypeDto>> Update(long id, [FromBody] SysDictTypeUpdateRequest request, CancellationToken cancellationToken)
+    public async Task<ActionResult<Result<SysDictTypeDto>>> Update(long id, [FromBody] SysDictTypeUpdateRequest request, CancellationToken cancellationToken)
     {
-        var t = await _types.GetSingleAsync(x => x.Id == id, cancellationToken);
-        if (t is null)
+        try
         {
-            return NotFound();
-        }
+            var ok = await _dicts.UpdateTypeAsync(id,
+                new UpdateDictTypeRequest(request.Name, request.Code, request.Category,
+                    request.Remark, request.IsActive, request.IsLocked),
+                cancellationToken);
 
-        if (t.IsLocked)
+            if (!ok) return NotFound(Result<SysDictTypeDto>.Fail("NotFound"));
+            var updated = await _dicts.GetTypeByIdAsync(id, cancellationToken);
+            return updated is null ? NotFound(Result<SysDictTypeDto>.Fail("NotFound")) : Ok(Result<SysDictTypeDto>.Ok(updated.ToDto()));
+        }
+        catch (InvalidOperationException ex)
         {
-            return BadRequest("系统锁定字典不允许修改。");
+            return BadRequest(Result<SysDictTypeDto>.Fail(ex.Message));
         }
-
-        if (!string.IsNullOrWhiteSpace(request.Name))
-        {
-            t.Name = request.Name.Trim();
-        }
-
-        if (!string.IsNullOrWhiteSpace(request.Code))
-        {
-            t.Code = request.Code.Trim();
-        }
-
-        if (request.Category is not ("system" or "business"))
-        {
-            return BadRequest("Category 仅支持 system 或 business。");
-        }
-
-        t.Category = request.Category;
-        t.Remark = string.IsNullOrWhiteSpace(request.Remark) ? null : request.Remark.Trim();
-        t.IsActive = request.IsActive;
-        t.IsLocked = request.IsLocked;
-        t.UpdatedAtUtc = DateTime.UtcNow;
-
-        await _types.UpdateAsync(t, cancellationToken);
-        return Ok(t.ToDto());
     }
 
     [HttpDelete("{id:long}")]
     public async Task<IActionResult> Delete(long id, CancellationToken cancellationToken)
     {
-        var t = await _types.GetSingleAsync(x => x.Id == id, cancellationToken);
-        if (t is null) return NotFound();
-        if (t.IsLocked) return BadRequest("系统锁定字典不允许删除。");
+        try
+        {
+            return await _dicts.DeleteTypeAsync(id, cancellationToken) ? NoContent() : NotFound(Result.Fail("NotFound"));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(Result.Fail(ex.Message));
+        }
+    }
 
-        // 级联软删：先删字典项，再删字典类型。
-        await _items.DeleteAsync(x => x.TypeId == id, cancellationToken);
-        await _types.DeleteAsync(x => x.Id == id, cancellationToken);
-        return NoContent();
+    // ──── Nested: api/dict-types/{typeId}/items ────
+
+    [HttpGet("{typeId:long}/items")]
+    public async Task<ActionResult<Result<IReadOnlyList<SysDictItemDto>>>> GetItems(long typeId, CancellationToken cancellationToken)
+    {
+        var items = await _dicts.GetItemsByTypeAsync(typeId, cancellationToken);
+        return Ok(Result<IReadOnlyList<SysDictItemDto>>.Ok(items.Select(static i => i.ToDto()).ToArray()));
+    }
+
+    [HttpGet("{typeId:long}/items/{itemId:long}")]
+    public async Task<ActionResult<Result<SysDictItemDto>>> GetItemById(long typeId, long itemId, CancellationToken cancellationToken)
+    {
+        var i = await _dicts.GetItemByIdAsync(itemId, cancellationToken);
+        return i is null ? NotFound(Result<SysDictItemDto>.Fail("NotFound")) : Ok(Result<SysDictItemDto>.Ok(i.ToDto()));
+    }
+
+    [HttpPost("{typeId:long}/items")]
+    public async Task<ActionResult<Result<SysDictItemDto>>> CreateItem(long typeId, [FromBody] SysDictItemCreateRequest request, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var id = await _dicts.CreateItemAsync(typeId,
+                new CreateDictItemRequest(request.Label, request.Value, request.SortOrder, request.IsActive, request.Remark),
+                cancellationToken);
+
+            var created = await _dicts.GetItemByIdAsync(id, cancellationToken);
+            return created is null
+                ? Problem("插入后无法读取字典项。")
+                : CreatedAtAction(nameof(GetItemById), new { typeId, itemId = id }, Result<SysDictItemDto>.Ok(created.ToDto()));
+        }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
+        {
+            return BadRequest(Result<SysDictItemDto>.Fail(ex.Message));
+        }
+    }
+
+    [HttpPut("{typeId:long}/items/{itemId:long}")]
+    public async Task<ActionResult<Result<SysDictItemDto>>> UpdateItem(long typeId, long itemId, [FromBody] SysDictItemUpdateRequest request, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var ok = await _dicts.UpdateItemAsync(itemId,
+                new UpdateDictItemRequest(request.Label, request.Value, request.SortOrder, request.IsActive, request.Remark),
+                cancellationToken);
+
+            if (!ok) return NotFound(Result<SysDictItemDto>.Fail("NotFound"));
+            var updated = await _dicts.GetItemByIdAsync(itemId, cancellationToken);
+            return updated is null ? NotFound(Result<SysDictItemDto>.Fail("NotFound")) : Ok(Result<SysDictItemDto>.Ok(updated.ToDto()));
+        }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
+        {
+            return BadRequest(Result<SysDictItemDto>.Fail(ex.Message));
+        }
+    }
+
+    [HttpDelete("{typeId:long}/items/{itemId:long}")]
+    public async Task<IActionResult> DeleteItem(long typeId, long itemId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await _dicts.DeleteItemAsync(itemId, cancellationToken) ? NoContent() : NotFound(Result.Fail("NotFound"));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(Result.Fail(ex.Message));
+        }
     }
 }

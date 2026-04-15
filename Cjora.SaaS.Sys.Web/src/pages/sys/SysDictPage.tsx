@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Plus,
   Edit2,
@@ -9,108 +9,88 @@ import {
   Unlock,
   Tag,
   List,
+  Loader2,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { toast } from "sonner";
+import { dictsApi, type DictTypeDto, type DictItemDto } from "@/api/dicts";
 
 type DictCategory = "system" | "business";
 
-interface DictType {
-  id: string;
-  name: string;
-  code: string;
-  category: DictCategory;
-  remark: string;
-  status: "active" | "disabled";
-  locked: boolean; // 系统字典锁定
-  createdAt: string;
-}
+interface TypeFormData { name: string; code: string; category: DictCategory; remark: string; isActive: boolean; }
+interface ItemFormData { label: string; value: string; sortOrder: number; isActive: boolean; remark: string; }
 
-interface DictItem {
-  id: string;
-  typeId: string;
-  label: string;
-  value: string;
-  sort: number;
-  status: "active" | "disabled";
-  remark: string;
-}
+const defaultTypeForm: TypeFormData = { name: "", code: "", category: "business", remark: "", isActive: true };
+const defaultItemForm: ItemFormData = { label: "", value: "", sortOrder: 1, isActive: true, remark: "" };
 
-const MOCK_DICT_TYPES: DictType[] = [
-  { id: "dt1", name: "数据范围类型", code: "DATA_SCOPE", category: "system", remark: "用于角色数据权限配置", status: "active", locked: true, createdAt: "2024-01-01" },
-  { id: "dt2", name: "用户状态", code: "USER_STATUS", category: "system", remark: "启用/禁用", status: "active", locked: true, createdAt: "2024-01-01" },
-  { id: "dt3", name: "性别", code: "GENDER", category: "system", remark: "通用性别字典", status: "active", locked: true, createdAt: "2024-01-01" },
-  { id: "dt4", name: "合同类型", code: "CONTRACT_TYPE", category: "business", remark: "业务合同分类", status: "active", locked: false, createdAt: "2024-02-01" },
-  { id: "dt5", name: "设备状态", code: "DEVICE_STATUS", category: "business", remark: "IoT设备在线状态", status: "active", locked: false, createdAt: "2024-02-05" },
-  { id: "dt6", name: "商机阶段", code: "OPP_STAGE", category: "business", remark: "CRM商机流转阶段", status: "active", locked: false, createdAt: "2024-03-01" },
-  { id: "dt7", name: "项目状态", code: "PROJECT_STATUS", category: "business", remark: "项目生命周期状态", status: "active", locked: false, createdAt: "2024-03-15" },
-];
-
-const MOCK_DICT_ITEMS: DictItem[] = [
-  // DATA_SCOPE
-  { id: "di1", typeId: "dt1", label: "全部数据", value: "all", sort: 1, status: "active", remark: "" },
-  { id: "di2", typeId: "dt1", label: "本租户数据", value: "tenant", sort: 2, status: "active", remark: "" },
-  { id: "di3", typeId: "dt1", label: "指定部门数据", value: "dept", sort: 3, status: "active", remark: "" },
-  { id: "di4", typeId: "dt1", label: "仅本人数据", value: "self", sort: 4, status: "active", remark: "" },
-  // USER_STATUS
-  { id: "di5", typeId: "dt2", label: "启用", value: "active", sort: 1, status: "active", remark: "" },
-  { id: "di6", typeId: "dt2", label: "禁用", value: "disabled", sort: 2, status: "active", remark: "" },
-  // GENDER
-  { id: "di7", typeId: "dt3", label: "男", value: "male", sort: 1, status: "active", remark: "" },
-  { id: "di8", typeId: "dt3", label: "女", value: "female", sort: 2, status: "active", remark: "" },
-  { id: "di9", typeId: "dt3", label: "未知", value: "unknown", sort: 3, status: "active", remark: "" },
-  // CONTRACT_TYPE
-  { id: "di10", typeId: "dt4", label: "销售合同", value: "sale", sort: 1, status: "active", remark: "" },
-  { id: "di11", typeId: "dt4", label: "采购合同", value: "purchase", sort: 2, status: "active", remark: "" },
-  { id: "di12", typeId: "dt4", label: "服务合同", value: "service", sort: 3, status: "active", remark: "" },
-  { id: "di13", typeId: "dt4", label: "框架协议", value: "framework", sort: 4, status: "active", remark: "" },
-  // DEVICE_STATUS
-  { id: "di14", typeId: "dt5", label: "在线", value: "online", sort: 1, status: "active", remark: "" },
-  { id: "di15", typeId: "dt5", label: "离线", value: "offline", sort: 2, status: "active", remark: "" },
-  { id: "di16", typeId: "dt5", label: "故障", value: "error", sort: 3, status: "active", remark: "" },
-  { id: "di17", typeId: "dt5", label: "维护中", value: "maintenance", sort: 4, status: "active", remark: "" },
-  // OPP_STAGE
-  { id: "di18", typeId: "dt6", label: "初步接触", value: "contact", sort: 1, status: "active", remark: "" },
-  { id: "di19", typeId: "dt6", label: "需求确认", value: "requirement", sort: 2, status: "active", remark: "" },
-  { id: "di20", typeId: "dt6", label: "方案报价", value: "proposal", sort: 3, status: "active", remark: "" },
-  { id: "di21", typeId: "dt6", label: "商务谈判", value: "negotiation", sort: 4, status: "active", remark: "" },
-  { id: "di22", typeId: "dt6", label: "已赢单", value: "won", sort: 5, status: "active", remark: "" },
-  { id: "di23", typeId: "dt6", label: "已输单", value: "lost", sort: 6, status: "active", remark: "" },
-  // PROJECT_STATUS
-  { id: "di24", typeId: "dt7", label: "规划中", value: "planning", sort: 1, status: "active", remark: "" },
-  { id: "di25", typeId: "dt7", label: "进行中", value: "active", sort: 2, status: "active", remark: "" },
-  { id: "di26", typeId: "dt7", label: "已完成", value: "done", sort: 3, status: "active", remark: "" },
-  { id: "di27", typeId: "dt7", label: "已暂停", value: "paused", sort: 4, status: "disabled", remark: "" },
-];
-
-interface TypeFormData { name: string; code: string; category: DictCategory; remark: string; status: "active" | "disabled"; }
-interface ItemFormData { label: string; value: string; sort: number; status: "active" | "disabled"; remark: string; }
-
-const defaultTypeForm: TypeFormData = { name: "", code: "", category: "business", remark: "", status: "active" };
-const defaultItemForm: ItemFormData = { label: "", value: "", sort: 1, status: "active", remark: "" };
+const PAGE_SIZE = 50;
 
 const SysDictPage = () => {
-  const [dictTypes, setDictTypes] = useState<DictType[]>(MOCK_DICT_TYPES);
-  const [dictItems, setDictItems] = useState<DictItem[]>(MOCK_DICT_ITEMS);
-  const [activeTypeId, setActiveTypeId] = useState<string>("dt1");
+  const [dictTypes, setDictTypes] = useState<DictTypeDto[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [page, setPage] = useState(1);
+  const [loadingTypes, setLoadingTypes] = useState(true);
+  const [savingType, setSavingType] = useState(false);
+  const [savingItem, setSavingItem] = useState(false);
+
+  const [dictItems, setDictItems] = useState<DictItemDto[]>([]);
+  const [loadingItems, setLoadingItems] = useState(false);
+
+  const [activeTypeId, setActiveTypeId] = useState<number | null>(null);
   const [filterCat, setFilterCat] = useState<DictCategory | "all">("all");
   const [typeSearch, setTypeSearch] = useState("");
 
-  // 字典类型弹窗
   const [showTypeModal, setShowTypeModal] = useState(false);
-  const [editTypeId, setEditTypeId] = useState<string | null>(null);
+  const [editTypeId, setEditTypeId] = useState<number | null>(null);
   const [typeForm, setTypeForm] = useState<TypeFormData>(defaultTypeForm);
-  const [deleteTypeId, setDeleteTypeId] = useState<string | null>(null);
+  const [deleteTypeId, setDeleteTypeId] = useState<number | null>(null);
 
-  // 字典项弹窗
   const [showItemModal, setShowItemModal] = useState(false);
-  const [editItemId, setEditItemId] = useState<string | null>(null);
+  const [editItemId, setEditItemId] = useState<number | null>(null);
   const [itemForm, setItemForm] = useState<ItemFormData>(defaultItemForm);
-  const [deleteItemId, setDeleteItemId] = useState<string | null>(null);
+  const [deleteItemId, setDeleteItemId] = useState<number | null>(null);
 
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
   const activeType = dictTypes.find((t) => t.id === activeTypeId);
-  const activeItems = dictItems
-    .filter((i) => i.typeId === activeTypeId)
-    .sort((a, b) => a.sort - b.sort);
+
+  const fetchTypes = useCallback(async (p: number) => {
+    setLoadingTypes(true);
+    try {
+      const res = await dictsApi.getTypesPaged(p, PAGE_SIZE);
+      if (res.success && res.data) {
+        setDictTypes(res.data.items);
+        setTotalCount(res.data.totalCount);
+        if (res.data.items.length > 0 && activeTypeId == null) {
+          setActiveTypeId(res.data.items[0].id);
+        }
+      }
+    } catch (e: any) {
+      toast.error("加载字典类型失败: " + e.message);
+    } finally {
+      setLoadingTypes(false);
+    }
+  }, []);
+
+  const fetchItems = useCallback(async (typeId: number) => {
+    setLoadingItems(true);
+    try {
+      const res = await dictsApi.getItems(typeId);
+      if (res.success && res.data) {
+        setDictItems(res.data.sort((a, b) => a.sortOrder - b.sortOrder));
+      } else {
+        setDictItems([]);
+      }
+    } catch (e: any) {
+      toast.error("加载字典项失败: " + e.message);
+      setDictItems([]);
+    } finally {
+      setLoadingItems(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchTypes(page); }, [page, fetchTypes]);
+  useEffect(() => { if (activeTypeId != null) fetchItems(activeTypeId); }, [activeTypeId, fetchItems]);
 
   const filteredTypes = dictTypes.filter((t) => {
     const matchCat = filterCat === "all" || t.category === filterCat;
@@ -118,83 +98,136 @@ const SysDictPage = () => {
     return matchCat && matchSearch;
   });
 
-  // ===== 字典类型操作 =====
+  // ===== Dict type operations =====
   const openAddType = () => {
     setEditTypeId(null);
     setTypeForm(defaultTypeForm);
     setShowTypeModal(true);
   };
 
-  const openEditType = (t: DictType) => {
-    if (t.locked) { toast.warning("系统字典不允许修改"); return; }
+  const openEditType = (t: DictTypeDto) => {
+    if (t.isLocked) { toast.warning("系统字典不允许修改"); return; }
     setEditTypeId(t.id);
-    setTypeForm({ name: t.name, code: t.code, category: t.category, remark: t.remark, status: t.status });
+    setTypeForm({ name: t.name, code: t.code, category: t.category as DictCategory, remark: t.remark ?? "", isActive: t.isActive });
     setShowTypeModal(true);
   };
 
-  const handleSaveType = () => {
+  const handleSaveType = async () => {
     if (!typeForm.name.trim()) { toast.error("字典名称不能为空"); return; }
     if (!typeForm.code.trim()) { toast.error("字典编码不能为空"); return; }
-    if (editTypeId) {
-      setDictTypes((prev) => prev.map((t) => t.id === editTypeId ? { ...t, ...typeForm } : t));
-      toast.success("字典类型已更新");
-    } else {
-      const newType: DictType = {
-        id: `dt${Date.now()}`, ...typeForm, locked: false,
-        createdAt: new Date().toISOString().split("T")[0],
-      };
-      setDictTypes((prev) => [...prev, newType]);
-      setActiveTypeId(newType.id);
-      toast.success("字典类型已创建");
+
+    setSavingType(true);
+    try {
+      if (editTypeId) {
+        const res = await dictsApi.updateType(editTypeId, {
+          name: typeForm.name,
+          code: typeForm.code,
+          category: typeForm.category,
+          remark: typeForm.remark || undefined,
+          isActive: typeForm.isActive,
+        });
+        if (!res.success) { toast.error(res.error ?? "更新失败"); return; }
+        toast.success("字典类型已更新");
+      } else {
+        const res = await dictsApi.createType({
+          name: typeForm.name,
+          code: typeForm.code,
+          category: typeForm.category,
+          remark: typeForm.remark || undefined,
+          isActive: typeForm.isActive,
+        });
+        if (!res.success) { toast.error(res.error ?? "创建失败"); return; }
+        if (res.data) setActiveTypeId(res.data.id);
+        toast.success("字典类型已创建");
+      }
+      setShowTypeModal(false);
+      fetchTypes(page);
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setSavingType(false);
     }
-    setShowTypeModal(false);
-    console.log("[SYS] 字典类型保存:", typeForm.code);
   };
 
-  const handleDeleteType = (id: string) => {
+  const handleDeleteType = async (id: number) => {
     const t = dictTypes.find((d) => d.id === id);
-    if (t?.locked) { toast.error("系统字典不允许删除"); setDeleteTypeId(null); return; }
-    setDictTypes((prev) => prev.filter((d) => d.id !== id));
-    setDictItems((prev) => prev.filter((i) => i.typeId !== id));
-    if (activeTypeId === id) setActiveTypeId(dictTypes[0]?.id || "");
-    setDeleteTypeId(null);
-    toast.success("字典类型已删除");
+    if (t?.isLocked) { toast.error("系统字典不允许删除"); setDeleteTypeId(null); return; }
+    try {
+      await dictsApi.delType(id);
+      if (activeTypeId === id) {
+        const remaining = dictTypes.filter((d) => d.id !== id);
+        setActiveTypeId(remaining.length > 0 ? remaining[0].id : null);
+      }
+      setDeleteTypeId(null);
+      toast.success("字典类型已删除");
+      fetchTypes(page);
+    } catch (e: any) {
+      toast.error("删除失败: " + e.message);
+    }
   };
 
-  // ===== 字典项操作 =====
+  // ===== Dict item operations =====
   const openAddItem = () => {
     setEditItemId(null);
-    setItemForm({ ...defaultItemForm, sort: activeItems.length + 1 });
+    setItemForm({ ...defaultItemForm, sortOrder: dictItems.length + 1 });
     setShowItemModal(true);
   };
 
-  const openEditItem = (item: DictItem) => {
-    if (activeType?.locked) { toast.warning("系统字典的字典项不允许修改"); return; }
+  const openEditItem = (item: DictItemDto) => {
+    if (activeType?.isLocked) { toast.warning("系统字典的字典项不允许修改"); return; }
     setEditItemId(item.id);
-    setItemForm({ label: item.label, value: item.value, sort: item.sort, status: item.status, remark: item.remark });
+    setItemForm({ label: item.label, value: item.value, sortOrder: item.sortOrder, isActive: item.isActive, remark: item.remark ?? "" });
     setShowItemModal(true);
   };
 
-  const handleSaveItem = () => {
+  const handleSaveItem = async () => {
     if (!itemForm.label.trim()) { toast.error("标签不能为空"); return; }
     if (!itemForm.value.trim()) { toast.error("值不能为空"); return; }
-    if (editItemId) {
-      setDictItems((prev) => prev.map((i) => i.id === editItemId ? { ...i, ...itemForm } : i));
-      toast.success("字典项已更新");
-    } else {
-      const newItem: DictItem = { id: `di${Date.now()}`, typeId: activeTypeId, ...itemForm };
-      setDictItems((prev) => [...prev, newItem]);
-      toast.success("字典项已添加");
+    if (activeTypeId == null) return;
+
+    setSavingItem(true);
+    try {
+      if (editItemId) {
+        const res = await dictsApi.updateItem(activeTypeId, editItemId, {
+          label: itemForm.label,
+          value: itemForm.value,
+          sortOrder: itemForm.sortOrder,
+          isActive: itemForm.isActive,
+          remark: itemForm.remark || undefined,
+        });
+        if (!res.success) { toast.error(res.error ?? "更新失败"); return; }
+        toast.success("字典项已更新");
+      } else {
+        const res = await dictsApi.createItem(activeTypeId, {
+          label: itemForm.label,
+          value: itemForm.value,
+          sortOrder: itemForm.sortOrder,
+          isActive: itemForm.isActive,
+          remark: itemForm.remark || undefined,
+        });
+        if (!res.success) { toast.error(res.error ?? "创建失败"); return; }
+        toast.success("字典项已添加");
+      }
+      setShowItemModal(false);
+      fetchItems(activeTypeId);
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setSavingItem(false);
     }
-    setShowItemModal(false);
-    console.log("[SYS] 字典项保存:", itemForm.value);
   };
 
-  const handleDeleteItem = (id: string) => {
-    if (activeType?.locked) { toast.error("系统字典项不允许删除"); setDeleteItemId(null); return; }
-    setDictItems((prev) => prev.filter((i) => i.id !== id));
-    setDeleteItemId(null);
-    toast.success("字典项已删除");
+  const handleDeleteItem = async (id: number) => {
+    if (activeType?.isLocked) { toast.error("系统字典项不允许删除"); setDeleteItemId(null); return; }
+    if (activeTypeId == null) return;
+    try {
+      await dictsApi.delItem(activeTypeId, id);
+      setDeleteItemId(null);
+      toast.success("字典项已删除");
+      fetchItems(activeTypeId);
+    } catch (e: any) {
+      toast.error("删除失败: " + e.message);
+    }
   };
 
   return (
@@ -214,7 +247,6 @@ const SysDictPage = () => {
           </button>
         </div>
 
-        {/* 搜索 + 分类过滤 */}
         <div className="px-3 py-2.5 space-y-2 border-b border-border">
           <div className="relative">
             <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
@@ -239,55 +271,74 @@ const SysDictPage = () => {
         </div>
 
         <div className="flex-1 overflow-y-auto p-2">
-          {filteredTypes.map((t) => {
-            const isActive = t.id === activeTypeId;
-            return (
-              <div
-                key={t.id}
-                className={`flex items-center gap-2 px-3 py-2.5 rounded-lg mb-0.5 cursor-pointer transition-colors group ${isActive ? "bg-secondary text-secondary-foreground" : "hover:bg-muted"}`}
-                onClick={() => setActiveTypeId(t.id)}
-              >
-                {t.locked
-                  ? <Lock size={12} className={`flex-shrink-0 ${isActive ? "text-secondary-foreground" : "text-muted-foreground"}`} />
-                  : <Unlock size={12} className={`flex-shrink-0 ${isActive ? "text-secondary-foreground" : "text-muted-foreground"}`} />
-                }
-                <div className="flex-1 min-w-0">
-                  <div className={`text-xs font-medium truncate ${isActive ? "text-secondary-foreground" : "text-foreground"}`}>{t.name}</div>
-                  <div className={`text-xs font-mono truncate ${isActive ? "opacity-70" : "text-muted-foreground"}`}>{t.code}</div>
+          {loadingTypes ? (
+            <div className="flex items-center justify-center py-16">
+              <Loader2 size={20} className="animate-spin text-muted-foreground" />
+            </div>
+          ) : filteredTypes.length === 0 ? (
+            <div className="text-sm text-muted-foreground text-center py-8">暂无字典类型</div>
+          ) : (
+            filteredTypes.map((t) => {
+              const isActive = t.id === activeTypeId;
+              return (
+                <div
+                  key={t.id}
+                  className={`flex items-center gap-2 px-3 py-2.5 rounded-lg mb-0.5 cursor-pointer transition-colors group ${isActive ? "bg-secondary text-secondary-foreground" : "hover:bg-muted"}`}
+                  onClick={() => setActiveTypeId(t.id)}
+                >
+                  {t.isLocked
+                    ? <Lock size={12} className={`flex-shrink-0 ${isActive ? "text-secondary-foreground" : "text-muted-foreground"}`} />
+                    : <Unlock size={12} className={`flex-shrink-0 ${isActive ? "text-secondary-foreground" : "text-muted-foreground"}`} />
+                  }
+                  <div className="flex-1 min-w-0">
+                    <div className={`text-xs font-medium truncate ${isActive ? "text-secondary-foreground" : "text-foreground"}`}>{t.name}</div>
+                    <div className={`text-xs font-mono truncate ${isActive ? "opacity-70" : "text-muted-foreground"}`}>{t.code}</div>
+                  </div>
+                  <span className={`text-xs px-1.5 py-0.5 rounded flex-shrink-0 ${
+                    t.category === "system"
+                      ? isActive ? "bg-primary-foreground/20 text-primary-foreground" : "bg-primary/10 text-primary"
+                      : isActive ? "bg-success-foreground/20 text-success-foreground" : "bg-success/10 text-success"
+                  }`}>
+                    {t.category === "system" ? "系统" : "业务"}
+                  </span>
+                  <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                    {!t.isLocked && (
+                      <>
+                        <button onClick={(e) => { e.stopPropagation(); openEditType(t); }} className="p-1 rounded hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors">
+                          <Edit2 size={11} />
+                        </button>
+                        <button onClick={(e) => { e.stopPropagation(); setDeleteTypeId(t.id); }} className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors">
+                          <Trash2 size={11} />
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
-                <span className={`text-xs px-1.5 py-0.5 rounded flex-shrink-0 ${
-                  t.category === "system"
-                    ? isActive ? "bg-primary-foreground/20 text-primary-foreground" : "bg-primary/10 text-primary"
-                    : isActive ? "bg-success-foreground/20 text-success-foreground" : "bg-success/10 text-success"
-                }`}>
-                  {t.category === "system" ? "系统" : "业务"}
-                </span>
-                <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                  {!t.locked && (
-                    <>
-                      <button onClick={(e) => { e.stopPropagation(); openEditType(t); }} className="p-1 rounded hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors">
-                        <Edit2 size={11} />
-                      </button>
-                      <button onClick={(e) => { e.stopPropagation(); setDeleteTypeId(t.id); }} className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors">
-                        <Trash2 size={11} />
-                      </button>
-                    </>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+              );
+            })
+          )}
         </div>
+
+        {totalPages > 1 && (
+          <div className="flex items-center justify-center gap-1 px-2 py-2 border-t border-border">
+            <button disabled={page <= 1} onClick={() => setPage((p) => p - 1)} className="p-1 rounded hover:bg-muted disabled:opacity-40">
+              <ChevronLeft size={12} />
+            </button>
+            <span className="text-xs text-muted-foreground">{page}/{totalPages}</span>
+            <button disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)} className="p-1 rounded hover:bg-muted disabled:opacity-40">
+              <ChevronRight size={12} />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* 右侧：字典项 */}
       <div className="flex-1 flex flex-col overflow-hidden bg-background">
         {activeType ? (
           <>
-            {/* 右侧顶部 */}
             <div className="flex-shrink-0 px-6 py-4 border-b border-border bg-card flex items-center justify-between">
               <div className="flex items-center gap-3">
-                {activeType.locked
+                {activeType.isLocked
                   ? <Lock size={15} className="text-muted-foreground" />
                   : <Unlock size={15} className="text-primary" />
                 }
@@ -295,7 +346,7 @@ const SysDictPage = () => {
                   <div className="font-semibold text-foreground flex items-center gap-2">
                     {activeType.name}
                     <code className="text-xs font-mono text-muted-foreground bg-muted px-1.5 py-0.5 rounded">{activeType.code}</code>
-                    {activeType.locked && (
+                    {activeType.isLocked && (
                       <span className="text-xs px-2 py-0.5 rounded bg-muted text-muted-foreground flex items-center gap-1">
                         <Lock size={10} />
                         系统锁定
@@ -305,7 +356,7 @@ const SysDictPage = () => {
                   <div className="text-xs text-muted-foreground mt-0.5">{activeType.remark || "暂无说明"}</div>
                 </div>
               </div>
-              {!activeType.locked && (
+              {!activeType.isLocked && (
                 <button className="bms-btn-primary flex items-center gap-1.5 text-xs" onClick={openAddItem}>
                   <Plus size={13} />
                   添加字典项
@@ -313,65 +364,70 @@ const SysDictPage = () => {
               )}
             </div>
 
-            {/* 字典项表格 */}
             <div className="flex-1 overflow-auto">
-              <table className="w-full text-sm border-collapse">
-                <thead className="sticky top-0 z-10">
-                  <tr className="bms-table-header text-muted-foreground text-xs">
-                    <th className="text-left px-5 py-3 font-medium w-10">排序</th>
-                    <th className="text-left px-4 py-3 font-medium">标签（Label）</th>
-                    <th className="text-left px-4 py-3 font-medium">值（Value）</th>
-                    <th className="text-left px-4 py-3 font-medium">备注</th>
-                    <th className="text-left px-4 py-3 font-medium">状态</th>
-                    {!activeType.locked && <th className="text-left px-4 py-3 font-medium">操作</th>}
-                  </tr>
-                </thead>
-                <tbody>
-                  {activeItems.map((item) => (
-                    <tr key={item.id} className="table-row-hover border-b border-border/50 transition-colors">
-                      <td className="px-5 py-3 text-xs text-muted-foreground">{item.sort}</td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-1.5">
-                          <List size={12} className="text-muted-foreground" />
-                          <span className="font-medium text-foreground">{item.label}</span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <code className="text-xs font-mono bg-muted px-2 py-0.5 rounded text-foreground">{item.value}</code>
-                      </td>
-                      <td className="px-4 py-3 text-xs text-muted-foreground">{item.remark || "—"}</td>
-                      <td className="px-4 py-3">
-                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${item.status === "active" ? "status-online" : "status-offline"}`}>
-                          {item.status === "active" ? "启用" : "禁用"}
-                        </span>
-                      </td>
-                      {!activeType.locked && (
+              {loadingItems ? (
+                <div className="flex items-center justify-center h-48">
+                  <Loader2 size={24} className="animate-spin text-muted-foreground" />
+                </div>
+              ) : (
+                <table className="w-full text-sm border-collapse">
+                  <thead className="sticky top-0 z-10">
+                    <tr className="bms-table-header text-muted-foreground text-xs">
+                      <th className="text-left px-5 py-3 font-medium w-10">排序</th>
+                      <th className="text-left px-4 py-3 font-medium">标签（Label）</th>
+                      <th className="text-left px-4 py-3 font-medium">值（Value）</th>
+                      <th className="text-left px-4 py-3 font-medium">备注</th>
+                      <th className="text-left px-4 py-3 font-medium">状态</th>
+                      {!activeType.isLocked && <th className="text-left px-4 py-3 font-medium">操作</th>}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dictItems.map((item) => (
+                      <tr key={item.id} className="table-row-hover border-b border-border/50 transition-colors">
+                        <td className="px-5 py-3 text-xs text-muted-foreground">{item.sortOrder}</td>
                         <td className="px-4 py-3">
-                          <div className="flex items-center gap-1">
-                            <button
-                              onClick={() => openEditItem(item)}
-                              className="p-1.5 rounded hover:bg-secondary transition-colors text-muted-foreground hover:text-primary"
-                            >
-                              <Edit2 size={13} />
-                            </button>
-                            <button
-                              onClick={() => setDeleteItemId(item.id)}
-                              className="p-1.5 rounded hover:bg-destructive/10 transition-colors text-muted-foreground hover:text-destructive"
-                            >
-                              <Trash2 size={13} />
-                            </button>
+                          <div className="flex items-center gap-1.5">
+                            <List size={12} className="text-muted-foreground" />
+                            <span className="font-medium text-foreground">{item.label}</span>
                           </div>
                         </td>
-                      )}
-                    </tr>
-                  ))}
-                  {activeItems.length === 0 && (
-                    <tr>
-                      <td colSpan={6} className="text-center py-12 text-muted-foreground text-sm">暂无字典项</td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+                        <td className="px-4 py-3">
+                          <code className="text-xs font-mono bg-muted px-2 py-0.5 rounded text-foreground">{item.value}</code>
+                        </td>
+                        <td className="px-4 py-3 text-xs text-muted-foreground">{item.remark || "—"}</td>
+                        <td className="px-4 py-3">
+                          <span className={`px-2 py-0.5 rounded text-xs font-medium ${item.isActive ? "status-online" : "status-offline"}`}>
+                            {item.isActive ? "启用" : "禁用"}
+                          </span>
+                        </td>
+                        {!activeType.isLocked && (
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={() => openEditItem(item)}
+                                className="p-1.5 rounded hover:bg-secondary transition-colors text-muted-foreground hover:text-primary"
+                              >
+                                <Edit2 size={13} />
+                              </button>
+                              <button
+                                onClick={() => setDeleteItemId(item.id)}
+                                className="p-1.5 rounded hover:bg-destructive/10 transition-colors text-muted-foreground hover:text-destructive"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
+                          </td>
+                        )}
+                      </tr>
+                    ))}
+                    {dictItems.length === 0 && !loadingItems && (
+                      <tr>
+                        <td colSpan={6} className="text-center py-12 text-muted-foreground text-sm">暂无字典项</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              )}
             </div>
           </>
         ) : (
@@ -486,8 +542,8 @@ const SysDictPage = () => {
                   <label className="block text-xs font-medium text-foreground mb-1.5">状态</label>
                   <select
                     className="bms-input w-full"
-                    value={typeForm.status}
-                    onChange={(e) => setTypeForm((p) => ({ ...p, status: e.target.value as "active" | "disabled" }))}
+                    value={typeForm.isActive ? "active" : "disabled"}
+                    onChange={(e) => setTypeForm((p) => ({ ...p, isActive: e.target.value === "active" }))}
                   >
                     <option value="active">启用</option>
                     <option value="disabled">禁用</option>
@@ -506,7 +562,10 @@ const SysDictPage = () => {
             </div>
             <div className="flex justify-end gap-2 px-6 py-4 border-t border-border">
               <button className="bms-btn-secondary" onClick={() => setShowTypeModal(false)}>取消</button>
-              <button className="bms-btn-primary" onClick={handleSaveType}>{editTypeId ? "保存" : "创建"}</button>
+              <button className="bms-btn-primary flex items-center gap-1.5" onClick={handleSaveType} disabled={savingType}>
+                {savingType && <Loader2 size={13} className="animate-spin" />}
+                {editTypeId ? "保存" : "创建"}
+              </button>
             </div>
           </div>
         </div>
@@ -549,16 +608,16 @@ const SysDictPage = () => {
                   <input
                     type="number"
                     className="bms-input w-full"
-                    value={itemForm.sort}
-                    onChange={(e) => setItemForm((p) => ({ ...p, sort: Number(e.target.value) }))}
+                    value={itemForm.sortOrder}
+                    onChange={(e) => setItemForm((p) => ({ ...p, sortOrder: Number(e.target.value) }))}
                   />
                 </div>
                 <div className="flex-1">
                   <label className="block text-xs font-medium text-foreground mb-1.5">状态</label>
                   <select
                     className="bms-input w-full"
-                    value={itemForm.status}
-                    onChange={(e) => setItemForm((p) => ({ ...p, status: e.target.value as "active" | "disabled" }))}
+                    value={itemForm.isActive ? "active" : "disabled"}
+                    onChange={(e) => setItemForm((p) => ({ ...p, isActive: e.target.value === "active" }))}
                   >
                     <option value="active">启用</option>
                     <option value="disabled">禁用</option>
@@ -577,7 +636,10 @@ const SysDictPage = () => {
             </div>
             <div className="flex justify-end gap-2 px-6 py-4 border-t border-border">
               <button className="bms-btn-secondary" onClick={() => setShowItemModal(false)}>取消</button>
-              <button className="bms-btn-primary" onClick={handleSaveItem}>{editItemId ? "保存" : "添加"}</button>
+              <button className="bms-btn-primary flex items-center gap-1.5" onClick={handleSaveItem} disabled={savingItem}>
+                {savingItem && <Loader2 size={13} className="animate-spin" />}
+                {editItemId ? "保存" : "添加"}
+              </button>
             </div>
           </div>
         </div>

@@ -6,7 +6,6 @@ public sealed record UserVm(
     string DisplayName,
     bool IsActive,
     long? DepartmentId,
-    string? DepartmentName,
     string? ExternalSubjectId,
     string? Email,
     string? Phone,
@@ -14,3 +13,8 @@ public sealed record UserVm(
     DateTime CreatedAtUtc,
     DateTime? UpdatedAtUtc);
 
+public sealed record UserRoleVm(
+    long UserRoleId,
+    long RoleId,
+    string RoleCode,
+    string RoleName);

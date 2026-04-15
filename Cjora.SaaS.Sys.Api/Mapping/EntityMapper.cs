@@ -1,18 +1,14 @@
 using Cjora.SaaS.Sys.Api.Models;
+using Cjora.SaaS.Sys.Application.Departments.Models;
+using Cjora.SaaS.Sys.Application.Dicts.Models;
+using Cjora.SaaS.Sys.Application.Permissions.Models;
+using Cjora.SaaS.Sys.Application.Roles.Models;
 using Cjora.SaaS.Sys.Entities;
-using Cjora.SaaS.Sys.Permissions;
-using System.Text.Json;
 
 namespace Cjora.SaaS.Sys.Api.Mapping;
 
 internal static class EntityMapper
 {
-    public static string? ToStringArrayJson(IReadOnlyList<string>? values) =>
-        values is null ? null : JsonSerializer.Serialize(values.Where(static x => !string.IsNullOrWhiteSpace(x)).Select(static x => x.Trim()).Distinct().ToArray());
-
-    public static string? ToLongArrayJson(IReadOnlyList<long>? values) =>
-        values is null ? null : JsonSerializer.Serialize(values.Distinct().ToArray());
-
     public static SysTenantDto ToDto(this SysTenant t) =>
         new()
         {
@@ -24,43 +20,24 @@ internal static class EntityMapper
             UpdatedAtUtc = t.UpdatedAtUtc
         };
 
-    public static SysUserDto ToDto(this SysUser u) =>
-        new()
-        {
-            Id = u.Id,
-            LoginName = u.LoginName,
-            DisplayName = u.DisplayName,
-            IsActive = u.IsActive,
-            DepartmentId = u.DepartmentId,
-            DepartmentName = u.DepartmentName,
-            ExternalSubjectId = u.ExternalSubjectId,
-            Email = u.Email,
-            Phone = u.Phone,
-            CreatorUserId = u.CreatorUserId,
-            CreatedAtUtc = u.CreatedAtUtc,
-            UpdatedAtUtc = u.UpdatedAtUtc
-        };
-
-    public static SysRoleDto ToDto(this SysRole r) =>
+    public static SysRoleDto ToDto(this RoleVm r) =>
         new()
         {
             Id = r.Id,
             Code = r.Code,
             Name = r.Name,
-            PermissionCodesJson = r.PermissionCodesJson,
             IsSystem = r.IsSystem,
             IsActive = r.IsActive,
-            Remark = r.Remark,
-            MenuIdsJson = r.MenuIdsJson,
             DataScope = r.DataScope,
-            DeptIdsJson = r.DeptIdsJson,
-            SkipDataPerm = r.SkipDataPerm,
+            Remark = r.Remark,
+            PermissionIds = r.PermissionIds,
+            DataScopeDeptIds = r.DataScopeDeptIds,
             CreatorUserId = r.CreatorUserId,
             CreatedAtUtc = r.CreatedAtUtc,
             UpdatedAtUtc = r.UpdatedAtUtc
         };
 
-    public static SysDepartmentDto ToDto(this SysDepartment d) =>
+    public static SysDepartmentDto ToDto(this DepartmentVm d) =>
         new()
         {
             Id = d.Id,
@@ -76,18 +53,21 @@ internal static class EntityMapper
             UpdatedAtUtc = d.UpdatedAtUtc
         };
 
-    public static SysUserRoleDto ToDto(this SysUserRole ur) =>
+    public static SysDepartmentTreeNodeDto ToTreeDto(this DepartmentTreeNodeVm n) =>
         new()
         {
-            Id = ur.Id,
-            UserId = ur.UserId,
-            RoleId = ur.RoleId,
-            CreatorUserId = ur.CreatorUserId,
-            CreatedAtUtc = ur.CreatedAtUtc,
-            UpdatedAtUtc = ur.UpdatedAtUtc
+            Id = n.Id,
+            ParentId = n.ParentId,
+            Name = n.Name,
+            Code = n.Code,
+            SortOrder = n.SortOrder,
+            Leader = n.Leader,
+            Phone = n.Phone,
+            IsActive = n.IsActive,
+            Children = n.Children.Select(c => c.ToTreeDto()).ToArray()
         };
 
-    public static SysPermissionDto ToDto(this SysPermission p) =>
+    public static SysPermissionDto ToDto(this PermissionVm p) =>
         new()
         {
             Id = p.Id,
@@ -95,7 +75,6 @@ internal static class EntityMapper
             Label = p.Label,
             NodeType = p.NodeType,
             Path = p.Path,
-            HttpMethod = p.HttpMethod,
             PermCode = p.PermCode,
             Icon = p.Icon,
             SortOrder = p.SortOrder,
@@ -103,7 +82,23 @@ internal static class EntityMapper
             IsActive = p.IsActive
         };
 
-    public static SysDictTypeDto ToDto(this SysDictType t) =>
+    public static SysPermissionTreeNodeDto ToTreeDto(this PermissionTreeNodeVm n) =>
+        new()
+        {
+            Id = n.Id,
+            ParentId = n.ParentId,
+            Label = n.Label,
+            NodeType = n.NodeType,
+            Path = n.Path,
+            PermCode = n.PermCode,
+            Icon = n.Icon,
+            SortOrder = n.SortOrder,
+            IsVisible = n.IsVisible,
+            IsActive = n.IsActive,
+            Children = n.Children.Select(c => c.ToTreeDto()).ToArray()
+        };
+
+    public static SysDictTypeDto ToDto(this DictTypeVm t) =>
         new()
         {
             Id = t.Id,
@@ -117,7 +112,7 @@ internal static class EntityMapper
             UpdatedAtUtc = t.UpdatedAtUtc
         };
 
-    public static SysDictItemDto ToDto(this SysDictItem i) =>
+    public static SysDictItemDto ToDto(this DictItemVm i) =>
         new()
         {
             Id = i.Id,
@@ -130,7 +125,4 @@ internal static class EntityMapper
             CreatedAtUtc = i.CreatedAtUtc,
             UpdatedAtUtc = i.UpdatedAtUtc
         };
-
-    public static string? ToPermissionCodesJson(IReadOnlyList<string>? codes) =>
-        codes is null or { Count: 0 } ? null : PermissionCodesSerializer.Serialize(codes);
 }

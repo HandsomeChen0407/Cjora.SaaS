@@ -14,15 +14,13 @@ internal sealed class SqlSugarUserRepository : IUserRepository
     }
 
     public Task<PagedResult<SysUser>> GetPagedAsync(PagedRequest request, CancellationToken cancellationToken = default)
-        => _repository.GetPagedListAsync(
-            predicate: null,
-            request: request,
-            orderBy: u => u.Id,
-            ascending: true,
-            cancellationToken: cancellationToken);
+        => _repository.GetPagedListAsync(null, request, u => u.Id, true, cancellationToken);
 
     public Task<SysUser?> GetByIdAsync(long id, CancellationToken cancellationToken = default)
         => _repository.GetSingleAsync(u => u.Id == id, cancellationToken);
+
+    public Task<SysUser?> GetByLoginNameAsync(string loginName, CancellationToken cancellationToken = default)
+        => _repository.GetSingleAsync(u => u.LoginName == loginName, cancellationToken);
 
     public async Task<long> CreateAsync(SysUser user, CancellationToken cancellationToken = default)
     {
@@ -39,4 +37,3 @@ internal sealed class SqlSugarUserRepository : IUserRepository
         return n > 0;
     }
 }
-

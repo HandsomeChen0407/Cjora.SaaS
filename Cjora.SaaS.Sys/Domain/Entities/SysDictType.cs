@@ -6,17 +6,18 @@ namespace Cjora.SaaS.Sys.Entities;
 /// 租户内字典类型（如 USER_STATUS、DATA_SCOPE）。
 /// </summary>
 [SugarTable("sys_dict_type")]
+[SugarIndex("uk_tenant_dict_code", nameof(TenantId), OrderByType.Asc, nameof(Code), OrderByType.Asc, IsUnique = true)]
 public sealed class SysDictType : SysLongIdTenantAuditedEntity
 {
     /// <summary>字典名称。</summary>
     [SugarColumn(ColumnName = "name", Length = 256, IsNullable = false)]
     public string Name { get; set; } = "";
 
-    /// <summary>字典编码（建议租户内唯一）。</summary>
+    /// <summary>字典编码，租户内唯一。</summary>
     [SugarColumn(ColumnName = "code", Length = 128, IsNullable = false)]
     public string Code { get; set; } = "";
 
-    /// <summary>分类：system / business（用于前端过滤）。</summary>
+    /// <summary>分类：system / business。</summary>
     [SugarColumn(ColumnName = "category", Length = 32, IsNullable = false)]
     public string Category { get; set; } = "business";
 
@@ -32,4 +33,3 @@ public sealed class SysDictType : SysLongIdTenantAuditedEntity
     [SugarColumn(ColumnName = "is_locked", IsNullable = false)]
     public bool IsLocked { get; set; }
 }
-

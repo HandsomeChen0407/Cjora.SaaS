@@ -7,7 +7,6 @@ public sealed class UserViewModel
     public string DisplayName { get; init; } = "";
     public bool IsActive { get; init; }
     public long? DepartmentId { get; init; }
-    public string? DepartmentName { get; init; }
     public string? ExternalSubjectId { get; init; }
     public string? Email { get; init; }
     public string? Phone { get; init; }
@@ -22,10 +21,10 @@ public sealed class CreateUserDto
     public string DisplayName { get; init; } = "";
     public bool IsActive { get; init; } = true;
     public long? DepartmentId { get; init; }
-    public string? DepartmentName { get; init; }
     public string? ExternalSubjectId { get; init; }
     public string? Email { get; init; }
     public string? Phone { get; init; }
+    public string? Password { get; init; }
 }
 
 public sealed class UpdateUserDto
@@ -33,9 +32,7 @@ public sealed class UpdateUserDto
     public string DisplayName { get; init; } = "";
     public bool IsActive { get; init; } = true;
     public long? DepartmentId { get; init; }
-    public string? DepartmentName { get; init; }
     public string? ExternalSubjectId { get; init; }
     public string? Email { get; init; }
     public string? Phone { get; init; }
 }
-

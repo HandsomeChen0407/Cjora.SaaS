@@ -1,14 +1,17 @@
 using Cjora.SaaS.Core.Repository.Models;
 using Cjora.SaaS.Sys.Api.Contracts.Common;
 using Cjora.SaaS.Sys.Api.Contracts.Users;
+using Cjora.SaaS.Sys.Api.Models;
 using Cjora.SaaS.Sys.Application.Users;
 using Cjora.SaaS.Sys.Application.Users.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Cjora.SaaS.Sys.Api.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/users")]
+[Authorize]
 public sealed class UsersController : ControllerBase
 {
     private readonly IUserAppService _users;
@@ -24,9 +27,7 @@ public sealed class UsersController : ControllerBase
         [FromQuery] int pageSize = 20,
         CancellationToken cancellationToken = default)
     {
-        var req = new PagedRequest { PageNumber = pageNumber, PageSize = pageSize };
-        var page = await _users.GetPagedAsync(req, cancellationToken).ConfigureAwait(false);
-
+        var page = await _users.GetPagedAsync(new PagedRequest { PageNumber = pageNumber, PageSize = pageSize }, cancellationToken);
         return Ok(Result<PagedResponse<UserViewModel>>.Ok(new PagedResponse<UserViewModel>
         {
             Items = page.Items.Select(static x => x.ToApiVm()).ToArray(),
@@ -39,7 +40,7 @@ public sealed class UsersController : ControllerBase
     [HttpGet("{id:long}")]
     public async Task<ActionResult<Result<UserViewModel>>> GetById(long id, CancellationToken cancellationToken)
     {
-        var u = await _users.GetByIdAsync(id, cancellationToken).ConfigureAwait(false);
+        var u = await _users.GetByIdAsync(id, cancellationToken);
         return u is null ? NotFound(Result<UserViewModel>.Fail("NotFound")) : Ok(Result<UserViewModel>.Ok(u.ToApiVm()));
     }
 
@@ -49,19 +50,11 @@ public sealed class UsersController : ControllerBase
         try
         {
             var id = await _users.CreateAsync(
-                    new CreateUserRequest(
-                        LoginName: request.LoginName,
-                        DisplayName: request.DisplayName,
-                        IsActive: request.IsActive,
-                        DepartmentId: request.DepartmentId,
-                        DepartmentName: request.DepartmentName,
-                        ExternalSubjectId: request.ExternalSubjectId,
-                        Email: request.Email,
-                        Phone: request.Phone),
-                    cancellationToken)
-                .ConfigureAwait(false);
+                new CreateUserRequest(request.LoginName, request.DisplayName, request.IsActive,
+                    request.DepartmentId, request.ExternalSubjectId, request.Email, request.Phone, request.Password),
+                cancellationToken);
 
-            var created = await _users.GetByIdAsync(id, cancellationToken).ConfigureAwait(false);
+            var created = await _users.GetByIdAsync(id, cancellationToken);
             return created is null
                 ? Problem("插入后无法读取用户。")
                 : CreatedAtAction(nameof(GetById), new { id }, Result<UserViewModel>.Ok(created.ToApiVm()));
@@ -75,35 +68,50 @@ public sealed class UsersController : ControllerBase
     [HttpPut("{id:long}")]
     public async Task<ActionResult<Result<UserViewModel>>> Update(long id, [FromBody] UpdateUserDto request, CancellationToken cancellationToken)
     {
-        var ok = await _users.UpdateAsync(
-                id,
-                new UpdateUserRequest(
-                    DisplayName: request.DisplayName,
-                    IsActive: request.IsActive,
-                    DepartmentId: request.DepartmentId,
-                    DepartmentName: request.DepartmentName,
-                    ExternalSubjectId: request.ExternalSubjectId,
-                    Email: request.Email,
-                    Phone: request.Phone),
-                cancellationToken)
-            .ConfigureAwait(false);
+        var ok = await _users.UpdateAsync(id,
+            new UpdateUserRequest(request.DisplayName, request.IsActive, request.DepartmentId,
+                request.ExternalSubjectId, request.Email, request.Phone),
+            cancellationToken);
 
         if (!ok) return NotFound(Result<UserViewModel>.Fail("NotFound"));
-        var updated = await _users.GetByIdAsync(id, cancellationToken).ConfigureAwait(false);
+        var updated = await _users.GetByIdAsync(id, cancellationToken);
         return updated is null ? NotFound(Result<UserViewModel>.Fail("NotFound")) : Ok(Result<UserViewModel>.Ok(updated.ToApiVm()));
     }
 
     [HttpDelete("{id:long}")]
     public async Task<IActionResult> Delete(long id, CancellationToken cancellationToken)
     {
-        var ok = await _users.DeleteAsync(id, cancellationToken).ConfigureAwait(false);
+        return await _users.DeleteAsync(id, cancellationToken) ? NoContent() : NotFound(Result.Fail("NotFound"));
+    }
+
+    // ──── Nested: api/users/{userId}/roles ────
+
+    [HttpGet("{userId:long}/roles")]
+    public async Task<ActionResult<Result<IReadOnlyList<UserRoleVm>>>> GetUserRoles(long userId, CancellationToken cancellationToken)
+    {
+        var roles = await _users.GetUserRolesAsync(userId, cancellationToken);
+        return Ok(Result<IReadOnlyList<UserRoleVm>>.Ok(roles));
+    }
+
+    [HttpPost("{userId:long}/roles")]
+    public async Task<ActionResult<Result>> AssignRole(long userId, [FromBody] SysUserRoleAssignRequest request, CancellationToken cancellationToken)
+    {
+        if (request.RoleId <= 0) return BadRequest(Result.Fail("RoleId 必填。"));
+        await _users.AssignRoleAsync(userId, request.RoleId, cancellationToken);
+        return Ok(Result.Ok());
+    }
+
+    [HttpDelete("{userId:long}/roles/{roleId:long}")]
+    public async Task<IActionResult> RemoveRole(long userId, long roleId, CancellationToken cancellationToken)
+    {
+        var ok = await _users.RemoveRoleAsync(userId, roleId, cancellationToken);
         return ok ? NoContent() : NotFound(Result.Fail("NotFound"));
     }
 }
 
 internal static class UserApiMapping
 {
-    public static UserViewModel ToApiVm(this Cjora.SaaS.Sys.Application.Users.Models.UserVm u) =>
+    public static UserViewModel ToApiVm(this UserVm u) =>
         new()
         {
             Id = u.Id,
@@ -111,7 +119,6 @@ internal static class UserApiMapping
             DisplayName = u.DisplayName,
             IsActive = u.IsActive,
             DepartmentId = u.DepartmentId,
-            DepartmentName = u.DepartmentName,
             ExternalSubjectId = u.ExternalSubjectId,
             Email = u.Email,
             Phone = u.Phone,

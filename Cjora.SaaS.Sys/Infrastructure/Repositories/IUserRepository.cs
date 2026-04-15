@@ -7,8 +7,8 @@ public interface IUserRepository
 {
     Task<PagedResult<SysUser>> GetPagedAsync(PagedRequest request, CancellationToken cancellationToken = default);
     Task<SysUser?> GetByIdAsync(long id, CancellationToken cancellationToken = default);
+    Task<SysUser?> GetByLoginNameAsync(string loginName, CancellationToken cancellationToken = default);
     Task<long> CreateAsync(SysUser user, CancellationToken cancellationToken = default);
     Task UpdateAsync(SysUser user, CancellationToken cancellationToken = default);
     Task<bool> DeleteAsync(long id, CancellationToken cancellationToken = default);
 }
-

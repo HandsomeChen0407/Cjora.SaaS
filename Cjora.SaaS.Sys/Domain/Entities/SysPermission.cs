@@ -3,9 +3,10 @@ using SqlSugar;
 namespace Cjora.SaaS.Sys.Entities;
 
 /// <summary>
-/// 租户内权限节点：菜单（路由）与按钮（权限码）统一建模，用于构建「权限树」。
+/// 租户内权限节点：菜单（路由）与按钮（权限码）统一建模，用于构建权限树。
 /// </summary>
 [SugarTable("sys_permission")]
+[SugarIndex("uk_tenant_permcode", nameof(TenantId), OrderByType.Asc, nameof(PermCode), OrderByType.Asc, IsUnique = true)]
 public sealed class SysPermission : SysLongIdTenantAuditedEntity
 {
     /// <summary>父节点 Id；根节点为 <see langword="null"/>。</summary>
@@ -24,11 +25,7 @@ public sealed class SysPermission : SysLongIdTenantAuditedEntity
     [SugarColumn(ColumnName = "path", Length = 512, IsNullable = true)]
     public string? Path { get; set; }
 
-    /// <summary>HTTP 方法（仅 button 节点可选，用于管理侧展示）。</summary>
-    [SugarColumn(ColumnName = "http_method", Length = 16, IsNullable = true)]
-    public string? HttpMethod { get; set; }
-
-    /// <summary>权限码（仅 button 节点使用；应与角色 PermissionCodesJson 中字符串对齐）。</summary>
+    /// <summary>权限码（仅 button 节点使用）。</summary>
     [SugarColumn(ColumnName = "perm_code", Length = 256, IsNullable = true)]
     public string? PermCode { get; set; }
 
@@ -40,7 +37,7 @@ public sealed class SysPermission : SysLongIdTenantAuditedEntity
     [SugarColumn(ColumnName = "sort_order", IsNullable = false)]
     public int SortOrder { get; set; }
 
-    /// <summary>是否在菜单中可见（仅 menu 节点建议使用）。</summary>
+    /// <summary>是否在菜单中可见。</summary>
     [SugarColumn(ColumnName = "is_visible", IsNullable = false)]
     public bool IsVisible { get; set; } = true;
 
@@ -48,4 +45,3 @@ public sealed class SysPermission : SysLongIdTenantAuditedEntity
     [SugarColumn(ColumnName = "is_active", IsNullable = false)]
     public bool IsActive { get; set; } = true;
 }
-

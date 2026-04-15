@@ -1,17 +1,37 @@
+using Cjora.SaaS.Core.MultiTenancy.Abstractions;
+using Cjora.SaaS.Core.Repository.Abstractions;
 using Cjora.SaaS.Core.Repository.Models;
 using Cjora.SaaS.Sys.Application.Users.Models;
+using Cjora.SaaS.Sys.DataPermission.Entities;
 using Cjora.SaaS.Sys.Entities;
 using Cjora.SaaS.Sys.Infrastructure.Repositories;
+using SqlSugar;
 
 namespace Cjora.SaaS.Sys.Application.Users;
 
 internal sealed class UserAppService : IUserAppService
 {
     private readonly IUserRepository _users;
+    private readonly IRepository<SysUserRole> _userRoles;
+    private readonly IRepository<SysRole> _roles;
+    private readonly IRepository<SysRoleDataScope> _roleDataScopes;
+    private readonly ISqlSugarClient _db;
+    private readonly ITenantProvider _tenantProvider;
 
-    public UserAppService(IUserRepository users)
+    public UserAppService(
+        IUserRepository users,
+        IRepository<SysUserRole> userRoles,
+        IRepository<SysRole> roles,
+        IRepository<SysRoleDataScope> roleDataScopes,
+        ISqlSugarClient db,
+        ITenantProvider tenantProvider)
     {
         _users = users;
+        _userRoles = userRoles;
+        _roles = roles;
+        _roleDataScopes = roleDataScopes;
+        _db = db;
+        _tenantProvider = tenantProvider;
     }
 
     public async Task<PagedResult<UserVm>> GetPagedAsync(PagedRequest request, CancellationToken cancellationToken = default)
@@ -32,6 +52,20 @@ internal sealed class UserAppService : IUserAppService
         return u?.ToVm();
     }
 
+    public async Task<UserVm?> GetByLoginNameAsync(string loginName, CancellationToken cancellationToken = default)
+    {
+        var u = await _users.GetByLoginNameAsync(loginName, cancellationToken).ConfigureAwait(false);
+        return u?.ToVm();
+    }
+
+    public async Task<bool> VerifyPasswordAsync(string loginName, string password, CancellationToken cancellationToken = default)
+    {
+        var u = await _users.GetByLoginNameAsync(loginName, cancellationToken).ConfigureAwait(false);
+        if (u is null || !u.IsActive) return false;
+        if (string.IsNullOrEmpty(u.PasswordHash)) return false;
+        return BCrypt.Net.BCrypt.Verify(password, u.PasswordHash);
+    }
+
     public async Task<long> CreateAsync(CreateUserRequest request, CancellationToken cancellationToken = default)
     {
         ValidateCreate(request);
@@ -40,9 +74,11 @@ internal sealed class UserAppService : IUserAppService
         {
             LoginName = request.LoginName.Trim(),
             DisplayName = request.DisplayName.Trim(),
+            PasswordHash = string.IsNullOrWhiteSpace(request.Password)
+                ? null
+                : BCrypt.Net.BCrypt.HashPassword(request.Password),
             IsActive = request.IsActive,
             DepartmentId = request.DepartmentId,
-            DepartmentName = request.DepartmentName,
             ExternalSubjectId = request.ExternalSubjectId,
             Email = string.IsNullOrWhiteSpace(request.Email) ? null : request.Email.Trim(),
             Phone = string.IsNullOrWhiteSpace(request.Phone) ? null : request.Phone.Trim(),
@@ -61,7 +97,6 @@ internal sealed class UserAppService : IUserAppService
         u.DisplayName = string.IsNullOrWhiteSpace(request.DisplayName) ? u.DisplayName : request.DisplayName.Trim();
         u.IsActive = request.IsActive;
         u.DepartmentId = request.DepartmentId;
-        u.DepartmentName = request.DepartmentName;
         u.ExternalSubjectId = request.ExternalSubjectId;
         u.Email = string.IsNullOrWhiteSpace(request.Email) ? null : request.Email.Trim();
         u.Phone = string.IsNullOrWhiteSpace(request.Phone) ? null : request.Phone.Trim();
@@ -73,17 +108,90 @@ internal sealed class UserAppService : IUserAppService
     public Task<bool> DeleteAsync(long id, CancellationToken cancellationToken = default)
         => _users.DeleteAsync(id, cancellationToken);
 
+    public async Task<IReadOnlyList<UserRoleVm>> GetUserRolesAsync(long userId, CancellationToken cancellationToken = default)
+    {
+        var userRoles = await _userRoles.GetListAsync(ur => ur.UserId == userId, cancellationToken);
+        if (userRoles.Count == 0) return [];
+
+        var roleIds = userRoles.Select(ur => ur.RoleId).ToList();
+        var roles = await _roles.GetListAsync(r => roleIds.Contains(r.Id), cancellationToken);
+        var roleDict = roles.ToDictionary(r => r.Id);
+
+        return userRoles
+            .Where(ur => roleDict.ContainsKey(ur.RoleId))
+            .Select(ur =>
+            {
+                var role = roleDict[ur.RoleId];
+                return new UserRoleVm(ur.Id, ur.RoleId, role.Code, role.Name);
+            })
+            .ToArray();
+    }
+
+    public async Task<bool> AssignRoleAsync(long userId, long roleId, CancellationToken cancellationToken = default)
+    {
+        var existing = await _userRoles.GetSingleAsync(
+            ur => ur.UserId == userId && ur.RoleId == roleId, cancellationToken);
+        if (existing is not null) return true;
+
+        await _userRoles.InsertAsync(new SysUserRole
+        {
+            UserId = userId,
+            RoleId = roleId,
+            CreatorUserId = 0,
+            CreatedAtUtc = DateTime.UtcNow
+        }, cancellationToken);
+
+        await RebuildUserDataScopeAsync(userId, cancellationToken);
+        return true;
+    }
+
+    public async Task<bool> RemoveRoleAsync(long userId, long roleId, CancellationToken cancellationToken = default)
+    {
+        var n = await _userRoles.DeleteAsync(ur => ur.UserId == userId && ur.RoleId == roleId, cancellationToken);
+        if (n == 0) return false;
+
+        await RebuildUserDataScopeAsync(userId, cancellationToken);
+        return true;
+    }
+
+    private async Task RebuildUserDataScopeAsync(long userId, CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+
+        await _db.Deleteable<SysUserDataScope>()
+            .Where(uds => uds.TenantId == tenantId && uds.UserId == userId)
+            .ExecuteCommandAsync();
+
+        var userRoles = await _userRoles.GetListAsync(ur => ur.UserId == userId, cancellationToken);
+        var roleIds = userRoles.Select(ur => ur.RoleId).ToList();
+        if (roleIds.Count == 0) return;
+
+        var dsEntries = await _roleDataScopes.GetListAsync(
+            ds => roleIds.Contains(ds.RoleId), cancellationToken);
+
+        var distinct = dsEntries
+            .Select(ds => new { ds.ScopeType, ds.ScopeId })
+            .Distinct()
+            .ToList();
+
+        foreach (var ds in distinct)
+        {
+            await _db.Insertable(new SysUserDataScope
+            {
+                TenantId = tenantId,
+                UserId = userId,
+                ScopeType = ds.ScopeType,
+                ScopeId = ds.ScopeId
+            }).ExecuteCommandAsync();
+        }
+    }
+
     private static void ValidateCreate(CreateUserRequest request)
     {
         if (string.IsNullOrWhiteSpace(request.LoginName))
-        {
             throw new ArgumentException("LoginName 必填。", nameof(request));
-        }
-
         if (string.IsNullOrWhiteSpace(request.DisplayName))
-        {
             throw new ArgumentException("DisplayName 必填。", nameof(request));
-        }
     }
 }
 
@@ -96,7 +204,6 @@ internal static class UserMapping
             DisplayName: u.DisplayName,
             IsActive: u.IsActive,
             DepartmentId: u.DepartmentId,
-            DepartmentName: u.DepartmentName,
             ExternalSubjectId: u.ExternalSubjectId,
             Email: u.Email,
             Phone: u.Phone,
@@ -104,4 +211,3 @@ internal static class UserMapping
             CreatedAtUtc: u.CreatedAtUtc,
             UpdatedAtUtc: u.UpdatedAtUtc);
 }
-

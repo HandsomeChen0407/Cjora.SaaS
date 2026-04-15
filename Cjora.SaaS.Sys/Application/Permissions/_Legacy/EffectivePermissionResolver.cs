@@ -5,43 +5,59 @@ using SqlSugar;
 namespace Cjora.SaaS.Sys.Permissions;
 
 /// <summary>
-/// 基于 <see cref="SysUserRole"/> 与 <see cref="SysRole.PermissionCodesJson"/> 计算有效权限码。
+/// 基于 <see cref="SysUserRole"/> + <see cref="SysRolePermission"/> + <see cref="SysPermission"/> 计算有效权限码。
 /// </summary>
 public sealed class EffectivePermissionResolver : IEffectivePermissionResolver
 {
-    private readonly IRepository<SysRole> _roles;
+    private readonly IRepository<SysPermission> _permissions;
     private readonly IRepository<SysUserRole> _userRoles;
+    private readonly IRepository<SysRolePermission> _rolePermissions;
 
-    /// <summary>
-    /// 初始化 <see cref="EffectivePermissionResolver"/>。
-    /// </summary>
-    /// <param name="roles">角色仓储。</param>
-    /// <param name="userRoles">用户角色仓储。</param>
-    public EffectivePermissionResolver(IRepository<SysRole> roles, IRepository<SysUserRole> userRoles)
+    public EffectivePermissionResolver(
+        IRepository<SysPermission> permissions,
+        IRepository<SysUserRole> userRoles,
+        IRepository<SysRolePermission> rolePermissions)
     {
-        _roles = roles;
+        _permissions = permissions;
         _userRoles = userRoles;
+        _rolePermissions = rolePermissions;
     }
 
     /// <inheritdoc />
     public async Task<IReadOnlySet<string>> GetEffectivePermissionCodesAsync(long userId, CancellationToken cancellationToken = default)
     {
-        // P1 Hardening：避免隐性 IN（Contains）；改为 EXISTS（子查询）。
-        var roles = await _roles.GetListAsync(
-            r => SqlFunc.Subqueryable<SysUserRole>()
-                .Where(ur => ur.UserId == userId && ur.RoleId == r.Id)
-                .Any(),
+        var permCodes = await _permissions.GetListAsync(
+            p => p.PermCode != null
+                 && p.PermCode != ""
+                 && p.IsActive
+                 && SqlFunc.Subqueryable<SysRolePermission>()
+                     .Where(rp => rp.PermissionId == p.Id
+                                  && SqlFunc.Subqueryable<SysUserRole>()
+                                      .Where(ur => ur.UserId == userId && ur.RoleId == rp.RoleId)
+                                      .Any())
+                     .Any(),
             cancellationToken);
 
-        var set = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var role in roles)
-        {
-            foreach (var code in PermissionCodesSerializer.Parse(role.PermissionCodesJson))
-            {
-                set.Add(code);
-            }
-        }
+        return permCodes
+            .Select(p => p.PermCode!)
+            .ToHashSet(StringComparer.Ordinal);
+    }
 
-        return set;
+    /// <summary>
+    /// 获取用户可见的菜单权限节点 Id 集合（含 menu 和 button 类型）。
+    /// </summary>
+    public async Task<IReadOnlySet<long>> GetEffectivePermissionIdsAsync(long userId, CancellationToken cancellationToken = default)
+    {
+        var perms = await _permissions.GetListAsync(
+            p => p.IsActive
+                 && SqlFunc.Subqueryable<SysRolePermission>()
+                     .Where(rp => rp.PermissionId == p.Id
+                                  && SqlFunc.Subqueryable<SysUserRole>()
+                                      .Where(ur => ur.UserId == userId && ur.RoleId == rp.RoleId)
+                                      .Any())
+                     .Any(),
+            cancellationToken);
+
+        return perms.Select(p => p.Id).ToHashSet();
     }
 }
