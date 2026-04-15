@@ -38,7 +38,6 @@ builder.Services.AddCors(options =>
 builder.Services.AddCjoraSaaSWithSqlSugar(
     configureTenant: o =>
     {
-        o.DefaultTenantId = "default";
         o.EnableJwtClaimTenantResolution = false;
     },
     configureSqlSugar: o =>

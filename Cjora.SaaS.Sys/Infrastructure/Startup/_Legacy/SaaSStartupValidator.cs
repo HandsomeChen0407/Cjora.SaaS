@@ -32,26 +32,9 @@ public static class SaaSStartupValidator
         }
         LogOk(logger, "[OK] DataPermissionProvider registered");
 
-        // 2) 默认租户 fallback 禁用检查
+        // 2) 默认租户回退：Core 已移除该语义（Fail-Fast），此处仅记录当前 tenant provider 类型。
         var tenantProvider = services.GetRequiredService<ITenantProvider>();
-        if (tenantProvider is HttpTenantProvider)
-        {
-            // 生产默认不允许 fallback；若确实需要，必须显式配置 AllowDefaultTenantFallbackOutsideHttpContext=true
-            var opt = services.GetRequiredService<IOptions<TenantOptions>>().Value;
-            if (opt.AllowDefaultTenantFallbackOutsideHttpContext)
-            {
-                // 允许是显式行为
-                LogOk(logger, "[OK] Tenant fallback explicitly allowed");
-            }
-            else
-            {
-                LogOk(logger, "[OK] Tenant fallback disabled");
-            }
-        }
-        else
-        {
-            LogOk(logger, "[OK] Non-HTTP tenant provider in use");
-        }
+        LogOk(logger, $"[OK] TenantProvider={tenantProvider.GetType().Name}");
 
         // 3) 索引存在性检查（复用 DatabaseSchemaValidator + 扫描受控表）
         var db = services.GetRequiredService<ISqlSugarClient>();

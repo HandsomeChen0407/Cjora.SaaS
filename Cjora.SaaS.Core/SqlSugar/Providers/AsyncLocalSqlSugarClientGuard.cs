@@ -14,7 +14,7 @@ public sealed class AsyncLocalSqlSugarClientGuard : ISqlSugarClientGuard
         // 若上层并发发起多个 DB 调用（Task.WhenAll 等），它们会继承同一 AsyncLocal 值，从而触发 Fail-Fast。
         if (Depth.Value > 0)
         {
-            throw new InvalidOperationException("Concurrent ISqlSugarClient usage detected. Parallel queries on the same logical flow are запрещ止。");
+            throw new InvalidOperationException("Concurrent ISqlSugarClient usage detected. Parallel queries on the same logical flow are forbidden.");
         }
 
         Depth.Value = 1;

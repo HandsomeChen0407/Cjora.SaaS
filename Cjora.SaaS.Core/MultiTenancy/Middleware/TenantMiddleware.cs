@@ -13,7 +13,7 @@ namespace Cjora.SaaS.Core.MultiTenancy.Middleware;
 /// <remarks>
 /// <para><b>职责</b></para>
 /// <list type="number">
-/// <item><description>调用 <see cref="ITenantIdentifierResolver"/>（默认：请求头 → JWT 声明 → 子域名 → 默认租户）。</description></item>
+/// <item><description>调用 <see cref="ITenantIdentifierResolver"/>（请求头 → JWT 声明 → 子域名；未命中即视为失败）。</description></item>
 /// <item><description>将最终租户标识与解析来源写入 <see cref="TenantHttpContextKeys"/>，避免后续组件重复解析。</description></item>
 /// <item><description>可选地把租户写回配置请求头，兼容只读 Header 的下游逻辑。</description></item>
 /// </list>
@@ -66,10 +66,9 @@ public sealed class TenantMiddleware
         var tenantId = resolutionResult.TenantId;
 
         logger.LogInformation(
-            "Tenant resolved: TenantId={TenantId}, Source={Source}, UsedDefaultFallback={UsedDefaultFallback}",
+            "Tenant resolved: TenantId={TenantId}, Source={Source}",
             tenantId,
-            resolutionResult.ResolutionSourceName,
-            resolutionResult.UsedDefaultFallback);
+            resolutionResult.ResolutionSourceName);
 
         if (options.EnableJwtClaimTenantResolution && context.User?.Identity?.IsAuthenticated != true)
         {

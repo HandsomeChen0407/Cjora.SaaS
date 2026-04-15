@@ -17,26 +17,12 @@ public class TenantOptions
     public string TenantIdHeaderName { get; set; } = "X-Tenant-Id";
 
     /// <summary>
-    /// 当没有任何 Contributor 解析出租户时使用的默认租户标识。
-    /// </summary>
-    /// <value>默认 <c>default</c>。生产环境常在网关直接拒绝无租户请求；此处保留便于本地开发。</value>
-    public string DefaultTenantId { get; set; } = "default";
-
-    /// <summary>
     /// 是否在请求未携带配置头时，将解析得到的租户标识写回该请求头。
     /// </summary>
     /// <remarks>
     /// 便于仍只读 Header 的下游组件；关闭后则主要依赖 <c>HttpContext.Items</c> 与 <see cref="ITenantProvider"/>。
     /// </remarks>
     public bool InjectDefaultTenantHeaderWhenMissing { get; set; } = true;
-
-    /// <summary>
-    /// 是否允许在无 <c>HttpContext</c> 且无显式租户上下文（<see cref="Abstractions.ITenantContextSetter"/>）时回退默认租户。
-    /// </summary>
-    /// <remarks>
-    /// 生产默认应为 <see langword="false"/>（Fail-Fast 防串租）；如确需兼容旧行为，必须显式开启。
-    /// </remarks>
-    public bool AllowDefaultTenantFallbackOutsideHttpContext { get; set; } = false;
 
     /// <summary>
     /// 是否启用基于请求头的租户解析。

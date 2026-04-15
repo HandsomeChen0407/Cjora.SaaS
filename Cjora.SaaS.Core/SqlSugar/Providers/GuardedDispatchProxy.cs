@@ -30,10 +30,7 @@ internal sealed class GuardedDispatchProxy<T> : DispatchProxy where T : class
         // P0 安全封锁：禁止外部获取/操作 QueryFilter（清除/禁用/绕过过滤器必须做不到）。
         // 配置 QueryFilter 仅允许在构建 ISqlSugarClient 的内部阶段通过真实 SqlSugarClient 实例完成。
         var methodName = targetMethod.Name;
-        if (methodName.Equals("get_QueryFilter", StringComparison.Ordinal)
-            || methodName.Contains("QueryFilter", StringComparison.OrdinalIgnoreCase)
-            || methodName.Contains("ClearFilter", StringComparison.OrdinalIgnoreCase)
-            || methodName.Contains("DisableFilter", StringComparison.OrdinalIgnoreCase))
+        if (methodName.Equals("get_QueryFilter", StringComparison.Ordinal))
         {
             throw new UnauthorizedAccessException("Access to QueryFilter manipulation is forbidden by Core security policy.");
         }

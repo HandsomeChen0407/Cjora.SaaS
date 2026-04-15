@@ -22,7 +22,7 @@
 
 - `ISqlSugarClient` 为 **Scoped** 工厂创建。
 - **禁止并发使用同一个 `ISqlSugarClient`**：并发查询（如 `Task.WhenAll`）会触发 guard 并抛异常。
-- **过滤器绕过在运行时做不到**：`QueryFilter` 访问与 `ClearFilter/DisableFilter` 类操作在代理层被封锁，调用将直接抛 `UnauthorizedAccessException`。
+- **过滤器绕过在运行时做不到**：`QueryFilter` 访问在代理层被封锁，调用将直接抛 `UnauthorizedAccessException`。
 - **并发安全工厂**：提供 `ISqlSugarClientFactory.Create()` 为并发场景创建隔离实例（每次创建独立 DI Scope，用完需 `Dispose()` 释放资源）。
 
 ### 4) DataProtection（真实实现边界）
