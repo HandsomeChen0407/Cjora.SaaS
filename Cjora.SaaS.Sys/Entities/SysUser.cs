@@ -29,7 +29,7 @@ public sealed class SysUser : SysLongIdTenantAuditedEntity
 
     /// <summary>
     /// 所属部门主键，与 <see cref="SysDepartment"/> 的 <see cref="SysLongIdTenantAuditedEntity.Id"/> 及 Core 中 <see cref="Cjora.SaaS.Core.DataPermission.Abstractions.IDepartmentScopedEntity"/> 的部门维度一致；
-    /// 登录颁发令牌时可将本 Id（及按需展开的子部门）写入声明，供 <see cref="Cjora.SaaS.Core.DataPermission.Abstractions.IDataPermissionContext.AccessibleDepartmentIds"/> 使用。
+    /// 企业级数据权限引擎启用后，不再写入 JWT 声明；应通过 <c>sys_user_data_scope</c> + 闭包表在查询时实时判定访问范围。
     /// </summary>
     [SugarColumn(ColumnName = "department_id", IsNullable = true)]
     public long? DepartmentId { get; set; }

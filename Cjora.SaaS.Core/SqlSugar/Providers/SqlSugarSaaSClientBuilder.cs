@@ -2,6 +2,7 @@ using Cjora.SaaS.Core.DataPermission.Abstractions;
 using Cjora.SaaS.Core.DataPermission.Enums;
 using Cjora.SaaS.Core.MultiTenancy.Abstractions;
 using Cjora.SaaS.Core.Repository.Abstractions;
+using Cjora.SaaS.Core.SqlSugar.Abstractions;
 using Cjora.SaaS.Core.SqlSugar.Models;
 using Microsoft.Extensions.DependencyInjection;
 using SqlSugar;
@@ -30,7 +31,7 @@ internal static class SqlSugarSaaSClientBuilder
             }
         });
 
-        ApplyGlobalQueryFilters(client, tenantProvider, dataPermission);
+        ApplyGlobalQueryFilters(client, services, tenantProvider, dataPermission);
         SqlSugarDataProtectionAop.RegisterCompositeDataExecuting(client, services, options, tenantProvider);
 
         return client;
@@ -38,6 +39,7 @@ internal static class SqlSugarSaaSClientBuilder
 
     private static void ApplyGlobalQueryFilters(
         ISqlSugarClient client,
+        IServiceProvider services,
         ITenantProvider tenantProvider,
         IDataPermissionContext dataPermission)
     {
@@ -46,18 +48,12 @@ internal static class SqlSugarSaaSClientBuilder
             entity => entity.TenantId == tenantProvider.GetTenantId(),
             QueryFilterProvider.FilterJoinPosition.Where);
 
-        // RUNTIME: 行级权限必须在每次生成 SQL 时读取 IDataPermissionContext 属性；
-        // 禁止在 Build 阶段 if (IsDisabled)/switch(Scope) 决定是否注册过滤器，否则 using (scope.Disable()) 在客户端已创建后无效。
-        client.QueryFilter.AddTableFilter<IDepartmentScopedEntity>(
-            entity =>
-                dataPermission.IsDisabled
-                || dataPermission.BypassRowLevelFilters
-                || (
-                    dataPermission.Scope == DataScopeKind.Department
-                    && dataPermission.AccessibleDepartmentIds.Contains(entity.DepartmentId)
-                )
-                || dataPermission.Scope != DataScopeKind.Department,
-            QueryFilterProvider.FilterJoinPosition.Where);
+        // Row-level（可插拔）：Core 不关心具体 SQL 形态（IN/EXISTS/JOIN）。
+        // 业务实现层（如 Sys）通过 ISqlSugarDataPermissionFilterProvider 注入具体过滤器（要求不使用 IN）。
+        foreach (var p in services.GetServices<ISqlSugarDataPermissionFilterProvider>())
+        {
+            p.Apply(client, dataPermission);
+        }
 
         // Self：在表达式内保留 CurrentUserId>0，与历史「无效用户 Id 时整表不可见」一致，避免 CreatorUserId==0 行被误放行。
         client.QueryFilter.AddTableFilter<ICreatorOwnedEntity>(

@@ -3,7 +3,7 @@ using Cjora.SaaS.Sys.Entities;
 namespace Cjora.SaaS.Sys.Departments;
 
 /// <summary>
-/// 在当前租户部门列表上展开子树，用于填充令牌中的 <c>dept_ids</c>（与 <see cref="Cjora.SaaS.Core.DataPermission.Abstractions.IDataPermissionContext.AccessibleDepartmentIds"/> 对应）。
+/// 在当前租户部门列表上展开子树。历史用于生成 JWT 中的部门列表；企业级数据权限引擎启用后通常用于生成/刷新闭包表或授权数据，而非发令牌。
 /// </summary>
 public static class SysDepartmentExpansion
 {

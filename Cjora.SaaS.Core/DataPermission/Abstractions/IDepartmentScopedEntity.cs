@@ -16,3 +16,21 @@ public interface IDepartmentScopedEntity : ITenantScopedEntity
     /// </summary>
     long DepartmentId { get; set; }
 }
+
+/// <summary>
+/// 标记实体包含「项目」维度，可由业务侧的数据权限提供者追加项目域过滤（建议 EXISTS/JOIN，不使用 IN）。
+/// </summary>
+public interface IProjectScopedEntity : ITenantScopedEntity
+{
+    /// <summary>行所属项目主键。</summary>
+    long ProjectId { get; set; }
+}
+
+/// <summary>
+/// 标记实体包含「客户」维度，可由业务侧的数据权限提供者追加客户域过滤（建议 EXISTS/JOIN，不使用 IN）。
+/// </summary>
+public interface ICustomerScopedEntity : ITenantScopedEntity
+{
+    /// <summary>行所属客户主键。</summary>
+    long CustomerId { get; set; }
+}

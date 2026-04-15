@@ -16,8 +16,6 @@ namespace Cjora.SaaS.Core.DataPermission.Providers;
 /// </remarks>
 public sealed class DefaultDataPermissionResolver : IDataPermissionResolver
 {
-    private const int MaxDepartmentIdsForInClause = 1000;
-
     private readonly ICurrentUser _currentUser;
     private readonly DataPermissionClaimOptions _claimOptions;
     private readonly ILogger<DefaultDataPermissionResolver> _logger;
@@ -38,24 +36,10 @@ public sealed class DefaultDataPermissionResolver : IDataPermissionResolver
     /// <inheritdoc />
     public Task<DataPermissionResult> ResolveAsync()
     {
-        // COMPAT: 声明解析规则未变
+        // IMPORTANT: 企业级数据权限：不再从 JWT/Claims 读取部门列表；部门/项目/客户等数据域关系由数据库表在查询时实时计算。
         var bypass = ResolveBypass();
         var scope = ResolveScope(bypass);
-        var deptIds = ResolveDepartmentIds();
-
-        // IN 爆炸防护：部门 Id 过多时降级为 Self（比截断列表更安全，避免静默丢失授权部门）。
-        if (!bypass && scope == DataScopeKind.Department && deptIds.Count > MaxDepartmentIdsForInClause)
-        {
-            _logger.LogWarning(
-                "部门声明数量 {Count} 超过上限 {Max}，数据范围已降级为 Self（用户 {UserId}）。",
-                deptIds.Count,
-                MaxDepartmentIdsForInClause,
-                _currentUser.UserId);
-            return Task.FromResult(
-                new DataPermissionResult(DataScopeKind.Self, bypass, _currentUser.UserId, Array.Empty<long>()));
-        }
-
-        return Task.FromResult(new DataPermissionResult(scope, bypass, _currentUser.UserId, deptIds));
+        return Task.FromResult(new DataPermissionResult(scope, bypass, _currentUser.UserId, Array.Empty<long>()));
     }
 
     private bool ResolveBypass()
@@ -94,29 +78,5 @@ public sealed class DefaultDataPermissionResolver : IDataPermissionResolver
         return _claimOptions.DefaultScope;
     }
 
-    private IReadOnlyList<long> ResolveDepartmentIds()
-    {
-        var raw = _currentUser.FindClaim(_claimOptions.DepartmentIdsClaimType);
-        return ParseIdList(raw);
-    }
-
-    private static IReadOnlyList<long> ParseIdList(string? raw)
-    {
-        if (string.IsNullOrWhiteSpace(raw))
-        {
-            return Array.Empty<long>();
-        }
-
-        var parts = raw.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        var list = new List<long>(parts.Length);
-        foreach (var p in parts)
-        {
-            if (long.TryParse(p, NumberStyles.Integer, CultureInfo.InvariantCulture, out var id))
-            {
-                list.Add(id);
-            }
-        }
-
-        return list;
-    }
+    // NOTE: DepartmentIdsClaimType 保留为兼容配置项，但默认解析器不再消费 dept_ids。
 }

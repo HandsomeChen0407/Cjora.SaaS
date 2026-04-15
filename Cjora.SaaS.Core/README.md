@@ -17,8 +17,59 @@
 
 - **`IDataPermissionResolver.ResolveAsync`** → **`DataPermissionResult`**（懒加载，Scoped 内至多一次）。
 - **`IDataPermissionContext`**：供 `QueryFilter` 表达式直接读属性。
-- **行级过滤**（部门 / 本人）：表达式内读取 `IsDisabled`、`BypassRowLevelFilters`、`Scope`、`AccessibleDepartmentIds`、`CurrentUserId`；**不在** `Build` 阶段 `if (IsDisabled)` 决定是否注册过滤器，因此 **`IDataPermissionScope.Disable()` 在客户端创建后仍生效**（`IsDisabled` 来自 `DataPermissionScopeState` 深度计数）。
-- **默认解析器**：`Department` 且部门 Id 数量 **> 1000** 时 **降级为 `Self`** 并打 Warning，减轻 SQL `IN` 爆炸。
+- **行级过滤**（本人 / 业务数据域）：过滤表达式必须在运行时读取 `IsDisabled`、`BypassRowLevelFilters`、`Scope`、`CurrentUserId`，确保 **`IDataPermissionScope.Disable()` 动态生效**（`IsDisabled` 来自 `DataPermissionScopeState` 深度计数）。
+- **Core / Sys 边界**：Core 仅提供可插拔扩展点 `ISqlSugarDataPermissionFilterProvider`；Sys 作为业务实现层提供“部门/项目/客户”等数据域的 EXISTS/JOIN 过滤（无 IN）。
+
+---
+
+## 企业级数据权限模型（无 IN 版）
+
+### 为什么不用 IN
+
+- **Token 膨胀**：把部门/项目集合塞进 JWT 会导致体积过大、传播路径长、变更不实时。
+- **SQL 不稳定**：`IN (@p1,@p2,...)` 参数随集合大小变化，计划缓存命中差，且存在长度/参数上限。
+
+### EXISTS/JOIN 方案（推荐）
+
+使用「授权关系表 + 维度闭包表」在 SQL 侧做存在性判断，SQL 文本稳定，权限变更实时生效。
+
+- **Sys 表（业务实现层）**
+  - `sys_user_data_scope(tenant_id, user_id, scope_type, scope_id)`：用户拥有的数据域根授权
+  - `sys_department_closure(ancestor_id, descendant_id)`：部门祖先-后代闭包
+
+典型 SQL（部门域）：
+
+```sql
+WHERE EXISTS (
+    SELECT 1
+    FROM sys_user_data_scope p
+    JOIN sys_department_closure c
+        ON c.ancestor_id = p.scope_id
+    WHERE
+        p.tenant_id = entity.tenant_id
+        AND p.user_id = @userId
+        AND p.scope_type = 'Department'
+        AND c.descendant_id = entity.department_id
+)
+```
+
+### Core vs Sys 分层（关键）
+
+- **Core（纯能力层）**
+  - 提供：`IDataPermissionContext`、`IDataPermissionScope`、Self 过滤、`ISqlSugarDataPermissionFilterProvider` 扩展点
+  - 不包含：任何业务权限表、任何 SQL 业务语义
+- **Sys（业务实现层）**
+  - 定义：`sys_user_data_scope`、`sys_department_closure` 等业务表
+  - 实现：`SysSqlSugarDataPermissionFilterProvider`（用 SqlSugar `Subqueryable().Any()` 生成 EXISTS/JOIN）
+
+### 扩展 ScopeType（Department / Project / Customer / Custom）
+
+Sys 在 `SysSqlSugarDataPermissionFilterProvider` 内按 `ScopeType` 分支追加过滤即可（推荐仍用 EXISTS/JOIN）。
+Core 已提供标记接口：
+
+- `IDepartmentScopedEntity`（已有）
+- `IProjectScopedEntity`（新增）
+- `ICustomerScopedEntity`（新增）
 
 ### 3. 加解密与哈希
 

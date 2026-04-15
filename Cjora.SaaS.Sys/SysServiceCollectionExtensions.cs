@@ -1,6 +1,7 @@
 using Cjora.SaaS.Core.DataPermission.Models;
 using Cjora.SaaS.Core.MultiTenancy.Hosting;
 using Cjora.SaaS.Core.Repository.Hosting;
+using Cjora.SaaS.Core.SqlSugar.Abstractions;
 using Cjora.SaaS.Sys.DataPermission;
 using Cjora.SaaS.Sys.MultiTenancy;
 using Cjora.SaaS.Sys.Departments;
@@ -46,6 +47,9 @@ public static class SysServiceCollectionExtensions
         }
 
         services.ReplaceTenantStorageRoutingProvider<SysTenantTableStorageRoutingProvider>();
+
+        // Sys 业务实现层提供行级数据权限过滤器（EXISTS/JOIN），Core 只负责调用。
+        services.AddScoped<ISqlSugarDataPermissionFilterProvider, SysSqlSugarDataPermissionFilterProvider>();
 
         services.AddScoped<ISysTenantRepository, SysTenantRepository>();
 

@@ -1,6 +1,7 @@
 using Cjora.SaaS.Core.Extensions;
 using Cjora.SaaS.Core.SqlSugar.Constants;
 using Cjora.SaaS.Sys;
+using Cjora.SaaS.Sys.DataPermission.Entities;
 using Cjora.SaaS.Sys.Entities;
 using Cjora.SaaS.Sys.Repositories;
 using Microsoft.Extensions.DependencyInjection;
@@ -61,6 +62,8 @@ using (var scope = app.Services.CreateScope())
         typeof(SysDepartment),
         typeof(SysUserRole),
         typeof(SysDepartmentScopedSetting),
+        typeof(SysUserDataScope),
+        typeof(SysDepartmentClosure),
         typeof(SysPermission),
         typeof(SysDictType),
         typeof(SysDictItem));

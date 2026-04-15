@@ -13,9 +13,6 @@ public static class SysDataPermissionClaims
     /// <summary>与 <see cref="DataPermissionClaimOptions.DataScopeClaimType"/> 默认一致。</summary>
     public const string DataScope = "data_scope";
 
-    /// <summary>与 <see cref="DataPermissionClaimOptions.DepartmentIdsClaimType"/> 默认一致。</summary>
-    public const string DepartmentIds = "dept_ids";
-
     /// <summary>与 <see cref="DataPermissionClaimOptions.BypassRowLevelFiltersClaimType"/> 默认一致。</summary>
     public const string BypassRowLevelFilters = "bypass_row_filters";
 

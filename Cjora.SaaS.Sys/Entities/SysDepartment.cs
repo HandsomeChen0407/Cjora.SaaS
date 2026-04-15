@@ -4,7 +4,7 @@ namespace Cjora.SaaS.Sys.Entities;
 
 /// <summary>
 /// 租户内部门主数据（树形可选）。与 Core 中业务行上的 <see cref="Cjora.SaaS.Core.DataPermission.IDepartmentScopedEntity.DepartmentId"/> 使用同一套数值主键，
-/// 便于登录发令牌时写入 <c>AccessibleDepartmentIds</c> 等声明，并与 SqlSugar 部门行级过滤器对齐。
+/// 企业级数据权限引擎启用后，部门范围不再通过 JWT 携带列表，而由 <c>sys_user_data_scope</c> + 闭包表在查询时实时判定。
 /// </summary>
 /// <remarks>
 /// <para>公共字段见 <see cref="SysLongIdTenantAuditedEntity"/>。</para>
