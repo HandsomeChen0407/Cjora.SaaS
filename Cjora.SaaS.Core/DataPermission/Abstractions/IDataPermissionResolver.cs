@@ -11,14 +11,15 @@ namespace Cjora.SaaS.Core.DataPermission.Abstractions;
 /// 默认实现 <see cref="Providers.DefaultDataPermissionResolver"/> 从 JWT/Claims 解析，与历史行为一致。
 /// </para>
 /// <para>
-/// 扩展方向：实现本接口并在 DI 中替换注册，即可接入数据库角色表、集中式权限服务或短期缓存，而无需修改仓储或过滤器注册代码。
+/// <b>// CHANGED</b>：异步 <see cref="ResolveAsync"/> 便于未来实现基于 DB / Redis 的解析而不阻塞线程池；
+/// 默认解析器仍以 <see cref="Task{TResult}"/> 同步完成方式返回，宿主可无缝替换为真异步实现。
 /// </para>
 /// </remarks>
 public interface IDataPermissionResolver
 {
     /// <summary>
-    /// 解析当前作用域的数据权限快照。
+    /// 解析当前作用域的数据权限快照（可异步访问缓存或远程权限服务）。
     /// </summary>
     /// <returns>不可变结果；同一 Scoped 生命周期内应幂等。</returns>
-    DataPermissionResult Resolve();
+    Task<DataPermissionResult> ResolveAsync();
 }

@@ -19,12 +19,8 @@ public static class SqlSugarServiceCollectionExtensions
 {
     /// <summary>
     /// 注册 Scoped <see cref="ISqlSugarClient"/>（按租户/存储路由解析连接串）、
-    /// <see cref="IDataPermissionResolver"/>、<see cref="IDataPermissionContext"/>、DataProtection 默认实现及声明解析选项。
+    /// <see cref="IDataPermissionResolver"/>、<see cref="IDataPermissionContext"/>、<see cref="IDataPermissionScope"/>、DataProtection 默认实现及声明解析选项。
     /// </summary>
-    /// <param name="services">服务集合。</param>
-    /// <param name="configure">SqlSugar 行为配置。</param>
-    /// <param name="configureDataProtection">可选 DataProtection 开关与密钥（默认全部关闭）。</param>
-    /// <returns>服务集合。</returns>
     public static IServiceCollection AddCjoraSqlSugarSaaS(
         this IServiceCollection services,
         Action<SqlSugarSaaSOptions> configure,
@@ -36,8 +32,13 @@ public static class SqlSugarServiceCollectionExtensions
         services.Configure(configure);
         services.Configure<DataPermissionClaimOptions>(_ => { });
         services.AddCjoraDataProtection(configureDataProtection);
+        services.TryAddScoped<DataPermissionScopeState>();
         services.TryAddScoped<IDataPermissionResolver, DefaultDataPermissionResolver>();
-        services.TryAddScoped<IDataPermissionContext, DefaultDataPermissionContext>();
+        services.TryAddScoped<IDataPermissionScope, DefaultDataPermissionScope>();
+        services.TryAddScoped<IDataPermissionContext>(static sp =>
+            new DefaultDataPermissionContext(
+                sp.GetRequiredService<IDataPermissionResolver>(),
+                sp.GetRequiredService<DataPermissionScopeState>()));
         services.AddKeyedScoped<ISqlSugarClient>(
             SqlSugarKeyedServiceKeys.Catalog,
             static (sp, _) => SqlSugarCatalogClientFactory.Create(sp));

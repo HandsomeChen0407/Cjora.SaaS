@@ -21,10 +21,11 @@
 
 **现状**：`SqlSugarSaaSClientBuilder` 中租户条件改为 `entity.TenantId == tenantProvider.GetTenantId()`，在 SqlSugar 生成/执行 SQL 时从当前 Scoped 的 `ITenantProvider` **重新取值**；`CreatorUserId` 条件使用 `dataPermission.CurrentUserId` 属性访问，与请求内上下文一致。
 
-### 2. IDataPermissionResolver 解耦
+### 2. IDataPermissionResolver 解耦（异步 + 单次解析）
 
-- **`IDataPermissionResolver`**：负责把 `ICurrentUser` / Claim（未来可扩展 DB、缓存、RBAC）解析为不可变 **`DataPermissionResult`**。
-- **`IDataPermissionContext`**：公共 API **保持不变**，默认实现 `DefaultDataPermissionContext` 内部委托 Resolver 并惰性缓存快照。
+- **`IDataPermissionResolver.ResolveAsync()`**：异步解析为 **`DataPermissionResult`**；默认实现仍以 `Task.FromResult` 同步完成，宿主可替换为 DB/Redis 真异步实现。
+- **`IDataPermissionContext`**：对外属性仍为同步 getter；`DefaultDataPermissionContext` 使用线程安全 `Lazy<Task<...>>` 在 Scoped 内至多解析一次（`GetAwaiter().GetResult()`）。
+- **`IDataPermissionScope`**：`using (scope.Disable()) { ... }` 临时关闭**行级**数据权限过滤器（**租户** `TenantId` 过滤仍生效）。
 - **替换方式**：`services.Replace(ServiceDescriptor.Scoped<IDataPermissionResolver, YourResolver>())`（在 `AddCjoraSqlSugarSaaS` 之后）。
 
 ### 3. TenantMiddleware 与管道顺序
@@ -57,7 +58,8 @@ builder.Services.AddCjoraSaaSWithSqlSugar(
         o.EnableHash = true;
         o.EnableAutoDecryption = true; // 按需：查询后自动解密实体字段
         o.AesKeyBase64 = "<32-byte key base64>";
-        o.AesIvBase64 = "<16-byte iv base64>";
+        o.AesIvBase64 = "<16-byte iv base64>"; // 仅旧版固定 IV 密文解密需要；新写入为随机 IV（CJ1:Base64(IV||Cipher)）
+        o.HashSalt = "<可选，防彩虹表；为空则与历史哈希算法一致>";
     });
 ```
 

@@ -9,28 +9,34 @@ namespace Cjora.SaaS.Core.DataPermission.Providers;
 /// </summary>
 /// <remarks>
 /// <para>
-/// 本类不再内联声明解析逻辑，而是将「如何解析」委托给 <see cref="IDataPermissionResolver"/>，以便宿主替换解析来源（DB/RBAC/缓存）
-/// 而保持 <see cref="IDataPermissionContext"/> 的公共 API 与升级前完全一致。
-/// </para>
-/// <para>
-/// 使用 Scoped 内惰性缓存的 <see cref="Models.DataPermissionResult"/>，避免同一请求内重复解析；与旧实现对缓存粒度的期望一致。
+/// <b>// CHANGED</b>：使用 <see cref="Lazy{T}"/> 包装 <c>Task&lt;DataPermissionResult&gt;</c>，在 Scoped 内至多触发一次
+/// <see cref="IDataPermissionResolver.ResolveAsync"/>，且懒初始化线程安全；同步属性通过
+/// <c>GetAwaiter().GetResult()</c> 取值（ASP.NET Core 请求线程无同步上下文，与典型 Scoped 解析兼容）。
 /// </para>
 /// </remarks>
 public sealed class DefaultDataPermissionContext : IDataPermissionContext
 {
     private readonly IDataPermissionResolver _resolver;
-    private DataPermissionResult? _snapshot;
+    private readonly DataPermissionScopeState _scopeState;
+    // CHANGED: async 解析 + 单次执行
+    private readonly Lazy<Task<DataPermissionResult>> _lazySnapshot;
 
     /// <summary>
     /// 初始化 <see cref="DefaultDataPermissionContext"/>。
     /// </summary>
-    /// <param name="resolver">数据权限解析器。</param>
-    public DefaultDataPermissionContext(IDataPermissionResolver resolver)
+    public DefaultDataPermissionContext(IDataPermissionResolver resolver, DataPermissionScopeState scopeState)
     {
         _resolver = resolver;
+        _scopeState = scopeState;
+        _lazySnapshot = new Lazy<Task<DataPermissionResult>>(
+            () => _resolver.ResolveAsync(),
+            LazyThreadSafetyMode.ExecutionAndPublication);
     }
 
-    private DataPermissionResult Snapshot => _snapshot ??= _resolver.Resolve();
+    private DataPermissionResult Snapshot => _lazySnapshot.Value.GetAwaiter().GetResult();
+
+    /// <inheritdoc />
+    public bool IsDisabled => _scopeState.IsDisabled;
 
     /// <inheritdoc />
     public DataScopeKind Scope => Snapshot.Scope;

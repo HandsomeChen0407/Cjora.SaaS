@@ -7,30 +7,27 @@ using Microsoft.Extensions.Options;
 namespace Cjora.SaaS.Core.DataProtection.Providers;
 
 /// <summary>
-/// 使用 AES-256-CBC + PKCS7 的字段加解密器；密钥与 IV 来自 <see cref="DataProtectionOptions"/>。
+/// 使用 AES-256-CBC + PKCS7 的字段加解密器。
 /// </summary>
 /// <remarks>
 /// <para>
-/// 实现为线程安全：每次操作使用 <see cref="Aes.Create()"/> 独立实例，避免共享可变 <see cref="Aes"/> 状态。
+/// <b>// CHANGED</b>：新密文格式为 <c>CJ1:</c> + Base64(随机 16 字节 IV || 密文)；解密优先按新格式拆分 IV，失败则回退旧格式（整段为密文 + 配置固定 IV）。
 /// </para>
-/// <para>
-/// 密文格式：<c>CJ1:</c> + Base64(密文)，其中 CBC 的 IV 固定取自配置（与密钥一并管理）。
-/// 生产环境应通过密钥轮换与访问审计降低固定 IV 下相同明文产生相同密文的可观测风险；更高安全模型可替换为带随机 IV 前缀的自定义 <see cref="IDataEncryptor"/>。
-/// </para>
+/// <para><b>// COMPAT</b>：旧库数据可继续解密。</para>
 /// </remarks>
 public sealed class AesDataEncryptor : IDataEncryptor
 {
-    /// <summary>与 <see cref="IsCiphertext"/> 一致的前缀，用于识别可解密负载。</summary>
+    /// <summary>与 <see cref="IsCiphertext"/> 一致的前缀。</summary>
     public const string CiphertextPrefix = "CJ1:";
 
-    private readonly IOptionsMonitor<DataProtectionOptions> _optionsMonitor;
-    private readonly object _keyInitGate = new();
-    private byte[]? _key;
-    private byte[]? _iv;
+    private const int IvLength = 16;
 
-    /// <summary>
-    /// 初始化 <see cref="AesDataEncryptor"/>。
-    /// </summary>
+    private readonly IOptionsMonitor<DataProtectionOptions> _optionsMonitor;
+    private readonly object _materialGate = new();
+    private byte[]? _key;
+    private byte[]? _legacyIv;
+
+    /// <summary>初始化 <see cref="AesDataEncryptor"/>。</summary>
     public AesDataEncryptor(IOptionsMonitor<DataProtectionOptions> optionsMonitor)
     {
         _optionsMonitor = optionsMonitor;
@@ -44,17 +41,17 @@ public sealed class AesDataEncryptor : IDataEncryptor
             return plaintext;
         }
 
-        EnsureMaterial();
+        EnsureKey();
 
-        using var aes = Aes.Create();
-        aes.Mode = CipherMode.CBC;
-        aes.Padding = PaddingMode.PKCS7;
-        aes.Key = _key!;
-        aes.IV = _iv!;
-        using var enc = aes.CreateEncryptor();
+        var iv = RandomNumberGenerator.GetBytes(IvLength);
         var plainBytes = Encoding.UTF8.GetBytes(plaintext);
-        var cipher = enc.TransformFinalBlock(plainBytes, 0, plainBytes.Length);
-        return CiphertextPrefix + Convert.ToBase64String(cipher);
+        var cipher = EncryptCore(_key!, iv, plainBytes);
+
+        var payload = new byte[IvLength + cipher.Length];
+        Buffer.BlockCopy(iv, 0, payload, 0, IvLength);
+        Buffer.BlockCopy(cipher, 0, payload, IvLength, cipher.Length);
+
+        return CiphertextPrefix + Convert.ToBase64String(payload);
     }
 
     /// <inheritdoc />
@@ -70,56 +67,123 @@ public sealed class AesDataEncryptor : IDataEncryptor
             return ciphertext;
         }
 
-        EnsureMaterial();
-
+        EnsureKey();
         var b64 = ciphertext[CiphertextPrefix.Length..];
-        var cipherBytes = Convert.FromBase64String(b64);
+        var all = Convert.FromBase64String(b64);
 
-        using var aes = Aes.Create();
-        aes.Mode = CipherMode.CBC;
-        aes.Padding = PaddingMode.PKCS7;
-        aes.Key = _key!;
-        aes.IV = _iv!;
-        using var dec = aes.CreateDecryptor();
-        var plain = dec.TransformFinalBlock(cipherBytes, 0, cipherBytes.Length);
-        return Encoding.UTF8.GetString(plain);
+        if (TryDecryptRandomIvPayload(all, _key!, out var plain))
+        {
+            return plain;
+        }
+
+        // COMPAT: 旧数据 — 整段为密文，使用配置 IV
+        EnsureLegacyIv();
+        return Encoding.UTF8.GetString(DecryptCore(_key!, _legacyIv!, all));
     }
 
-    /// <summary>判断字符串是否为当前实现产出的密文前缀格式。</summary>
+    /// <summary>判断是否为带前缀的可解密负载。</summary>
     public static bool IsCiphertext(string? value)
         => !string.IsNullOrEmpty(value) && value.StartsWith(CiphertextPrefix, StringComparison.Ordinal);
 
-    private void EnsureMaterial()
+    private static bool TryDecryptRandomIvPayload(byte[] all, byte[] key, out string plaintext)
     {
-        if (_key is not null && _iv is not null)
+        plaintext = string.Empty;
+        if (all.Length < IvLength + 16 || (all.Length - IvLength) % 16 != 0)
+        {
+            return false;
+        }
+
+        try
+        {
+            var iv = new byte[IvLength];
+            Buffer.BlockCopy(all, 0, iv, 0, IvLength);
+            var cipherLen = all.Length - IvLength;
+            var cipher = new byte[cipherLen];
+            Buffer.BlockCopy(all, IvLength, cipher, 0, cipherLen);
+            var plain = DecryptCore(key, iv, cipher);
+            plaintext = Encoding.UTF8.GetString(plain);
+            return true;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
+
+    private static byte[] EncryptCore(byte[] key, byte[] iv, byte[] plainBytes)
+    {
+        using var aes = Aes.Create();
+        aes.Mode = CipherMode.CBC;
+        aes.Padding = PaddingMode.PKCS7;
+        aes.Key = key;
+        aes.IV = iv;
+        using var enc = aes.CreateEncryptor();
+        return enc.TransformFinalBlock(plainBytes, 0, plainBytes.Length);
+    }
+
+    private static byte[] DecryptCore(byte[] key, byte[] iv, byte[] cipherBytes)
+    {
+        using var aes = Aes.Create();
+        aes.Mode = CipherMode.CBC;
+        aes.Padding = PaddingMode.PKCS7;
+        aes.Key = key;
+        aes.IV = iv;
+        using var dec = aes.CreateDecryptor();
+        return dec.TransformFinalBlock(cipherBytes, 0, cipherBytes.Length);
+    }
+
+    private void EnsureKey()
+    {
+        if (_key is not null)
         {
             return;
         }
 
-        lock (_keyInitGate)
+        lock (_materialGate)
         {
-            if (_key is not null && _iv is not null)
+            if (_key is not null)
             {
                 return;
             }
 
             var o = _optionsMonitor.CurrentValue;
-            if (string.IsNullOrWhiteSpace(o.AesKeyBase64) || string.IsNullOrWhiteSpace(o.AesIvBase64))
+            if (string.IsNullOrWhiteSpace(o.AesKeyBase64))
             {
-                throw new InvalidOperationException(
-                    "启用字段加密时必须配置 DataProtectionOptions.AesKeyBase64 与 AesIvBase64（分别为 32 字节与 16 字节的 Base64）。");
+                throw new InvalidOperationException("启用字段加密时必须配置 DataProtectionOptions.AesKeyBase64（32 字节的 Base64）。");
             }
 
             _key = Convert.FromBase64String(o.AesKeyBase64.Trim());
-            _iv = Convert.FromBase64String(o.AesIvBase64.Trim());
             if (_key.Length != 32)
             {
                 throw new InvalidOperationException("AesKeyBase64 解码后长度必须为 32 字节（AES-256）。");
             }
+        }
+    }
 
-            if (_iv.Length != 16)
+    private void EnsureLegacyIv()
+    {
+        if (_legacyIv is not null)
+        {
+            return;
+        }
+
+        lock (_materialGate)
+        {
+            if (_legacyIv is not null)
             {
-                throw new InvalidOperationException("AesIvBase64 解码后长度必须为 16 字节（AES CBC 块大小）。");
+                return;
+            }
+
+            var o = _optionsMonitor.CurrentValue;
+            if (string.IsNullOrWhiteSpace(o.AesIvBase64))
+            {
+                throw new InvalidOperationException("解密旧版（固定 IV）密文需要配置 DataProtectionOptions.AesIvBase64（16 字节 Base64）。");
+            }
+
+            _legacyIv = Convert.FromBase64String(o.AesIvBase64.Trim());
+            if (_legacyIv.Length != 16)
+            {
+                throw new InvalidOperationException("AesIvBase64 解码后长度必须为 16 字节。");
             }
         }
     }

@@ -16,15 +16,6 @@ namespace Cjora.SaaS.Core.SqlSugar.Providers;
 /// <summary>
 /// SqlSugar <c>DataExecuting</c> / <c>DataExecuted</c> 与 DataProtection 元数据缓存的桥接层。
 /// </summary>
-/// <remarks>
-/// <para>
-/// SqlSugar 的 <c>Aop.DataExecuting</c> / <c>DataExecuted</c> 仅有 set 访问器，无法读取“旧委托”再组合；
-/// 因此由 <see cref="SqlSugarSaaSClientBuilder"/> 注册<strong>单一</strong>委托，在本类内顺序调用租户/创建人与字段保护逻辑。
-/// </para>
-/// <para>
-/// 元数据通过 <see cref="EntityFieldEncryptionRegistry"/> 按类型缓存，热路径不做全类型反射扫描。
-/// </para>
-/// </remarks>
 internal static class SqlSugarDataProtectionAop
 {
     internal static void RegisterCompositeDataExecuting(
@@ -102,20 +93,21 @@ internal static class SqlSugarDataProtectionAop
 
             if (wantEncrypt && encryptor is not null)
             {
+                // CHANGED: 原 return 会中断整个 AOP 委托；改为 continue 仅跳过当前描述项的加密分支
                 if (string.IsNullOrEmpty(plain))
                 {
-                    return;
+                    continue;
                 }
 
                 if (AesDataEncryptor.IsCiphertext(plain))
                 {
-                    return;
+                    continue;
                 }
 
                 entityInfo.SetValue(encryptor.Encrypt(plain));
             }
 
-            return;
+            break;
         }
     }
 
@@ -149,7 +141,6 @@ internal static class SqlSugarDataProtectionAop
         }
         catch (Microsoft.CSharp.RuntimeBinder.RuntimeBinderException)
         {
-            // SqlSugar 版本差异或匿名查询：忽略无法识别的 DataExecuted 负载。
         }
     }
 

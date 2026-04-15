@@ -11,13 +11,6 @@ namespace Cjora.SaaS.Core.SqlSugar.Providers;
 /// <summary>
 /// 创建已配置全局过滤器与 AOP 的 <see cref="ISqlSugarClient"/>（连接串由调用方决定）。
 /// </summary>
-/// <remarks>
-/// <para>
-/// <b>租户 QueryFilter</b>：过滤表达式中对租户 Id 的判定使用
-/// <c>tenantProvider.GetTenantId()</c> 的<strong>运行时调用</strong>，避免将 Scoped 解析结果捕获为常量写入表达式树导致
-/// 后台任务或错误复用客户端时的串租风险（与仅依赖请求作用域解析器的架构一致）。
-/// </para>
-/// </remarks>
 internal static class SqlSugarSaaSClientBuilder
 {
     internal static ISqlSugarClient Build(IServiceProvider services, string connectionString, SqlSugarSaaSOptions options)
@@ -51,6 +44,12 @@ internal static class SqlSugarSaaSClientBuilder
         client.QueryFilter.AddTableFilter<ITenantScopedEntity>(
             entity => entity.TenantId == tenantProvider.GetTenantId(),
             QueryFilterProvider.FilterJoinPosition.Where);
+
+        // NEW: 临时关闭行级数据权限（租户过滤仍生效）
+        if (dataPermission.IsDisabled)
+        {
+            return;
+        }
 
         if (dataPermission.BypassRowLevelFilters)
         {

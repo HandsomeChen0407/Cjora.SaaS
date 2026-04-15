@@ -11,6 +11,11 @@ namespace Cjora.SaaS.Core.DataPermission.Abstractions;
 public interface IDataPermissionContext
 {
     /// <summary>
+    /// <b>// NEW</b>：为 <see langword="true"/> 时跳过部门/本人行级 QueryFilter（租户过滤器仍生效）。
+    /// </summary>
+    bool IsDisabled { get; }
+
+    /// <summary>
     /// 当前用户的数据范围类型。
     /// </summary>
     DataScopeKind Scope { get; }

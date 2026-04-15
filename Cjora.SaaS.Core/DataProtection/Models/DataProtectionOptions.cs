@@ -8,8 +8,7 @@ namespace Cjora.SaaS.Core.DataProtection.Models;
 /// 所有布尔开关默认 <see langword="false"/>，宿主不显式配置时行为与未引入 DataProtection 模块前一致，满足「默认关闭、向后兼容」。
 /// </para>
 /// <para>
-/// <see cref="AesKeyBase64"/> / <see cref="AesIvBase64"/> 应在密钥管理（Azure Key Vault、K8s Secret 等）中注入，避免写入源码仓库。
-/// AES-256 需要 32 字节密钥与 16 字节 IV（均使用 Base64 编码配置）。
+/// <see cref="AesKeyBase64"/> 必填（加密/解密）；<see cref="AesIvBase64"/> 仅用于 <b>旧版</b>固定 IV 密文兼容解密。
 /// </para>
 /// </remarks>
 public sealed class DataProtectionOptions
@@ -37,6 +36,12 @@ public sealed class DataProtectionOptions
     /// <summary>AES-256 密钥（32 字节）的 Base64。</summary>
     public string? AesKeyBase64 { get; set; }
 
-    /// <summary>AES CBC 初始化向量（16 字节）的 Base64。</summary>
+    /// <summary>旧版固定 IV（16 字节）Base64；新加密使用随机 IV，本值仅用于解密历史数据。</summary>
     public string? AesIvBase64 { get; set; }
+
+    /// <summary>
+    /// <b>// NEW</b>：哈希盐；非空时摘要为 <c>SHA256(Trim(input) + HashSalt)</c>。
+    /// <b>// COMPAT</b>：为 <see langword="null"/> 或空字符串时等价于历史 <c>SHA256(UTF8(Trim(input)))</c>。
+    /// </summary>
+    public string? HashSalt { get; set; }
 }

@@ -11,7 +11,7 @@ namespace Cjora.SaaS.Core.DataPermission.Models;
 /// 而 SqlSugar 全局过滤器与业务代码仍只依赖稳定的 <see cref="Abstractions.IDataPermissionContext"/>，避免大面积改动。
 /// </para>
 /// <para>
-/// 本类型为不可变值对象；同一 Scoped 请求内 <see cref="Abstractions.IDataPermissionResolver.Resolve"/> 应返回语义一致的结果。
+/// 本类型为不可变值对象；同一 Scoped 请求内 <see cref="Abstractions.IDataPermissionResolver.ResolveAsync"/> 应返回语义一致的结果。
 /// </para>
 /// </remarks>
 public sealed class DataPermissionResult

@@ -11,8 +11,7 @@ namespace Cjora.SaaS.Core.DataPermission.Providers;
 /// 默认 <see cref="IDataPermissionResolver"/>：从 <see cref="ICurrentUser"/> 声明与 <see cref="DataPermissionClaimOptions"/> 解析 <see cref="DataPermissionResult"/>。
 /// </summary>
 /// <remarks>
-/// 逻辑由原 <see cref="DefaultDataPermissionContext"/> 内联解析迁出，以保持「解析」与「上下文承载」职责分离；
-/// 行为与升级前一致，确保宿主无感切换。
+/// <b>// CHANGED</b>：<see cref="ResolveAsync"/> 包装同步解析逻辑，行为与历史 <c>Resolve()</c> 等价，便于宿主替换为真异步实现。
 /// </remarks>
 public sealed class DefaultDataPermissionResolver : IDataPermissionResolver
 {
@@ -29,12 +28,13 @@ public sealed class DefaultDataPermissionResolver : IDataPermissionResolver
     }
 
     /// <inheritdoc />
-    public DataPermissionResult Resolve()
+    public Task<DataPermissionResult> ResolveAsync()
     {
+        // COMPAT: 声明解析规则未变
         var bypass = ResolveBypass();
         var scope = ResolveScope(bypass);
         var deptIds = ResolveDepartmentIds();
-        return new DataPermissionResult(scope, bypass, _currentUser.UserId, deptIds);
+        return Task.FromResult(new DataPermissionResult(scope, bypass, _currentUser.UserId, deptIds));
     }
 
     private bool ResolveBypass()
