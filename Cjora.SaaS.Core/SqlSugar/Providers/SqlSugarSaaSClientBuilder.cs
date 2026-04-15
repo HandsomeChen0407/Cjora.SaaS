@@ -63,6 +63,11 @@ internal static class SqlSugarSaaSClientBuilder
         ITenantProvider tenantProvider,
         IDataPermissionContext dataPermission)
     {
+        // 软删除：全局排除已逻辑删除的行，调用方无需手写 !IsDeleted。
+        client.QueryFilter.AddTableFilter<ISoftDeleteEntity>(
+            entity => !entity.IsDeleted,
+            QueryFilterProvider.FilterJoinPosition.Where);
+
         // 租户：保持构建时绑定 ITenantProvider（与历史一致）。
         client.QueryFilter.AddTableFilter<ITenantScopedEntity>(
             entity => entity.TenantId == tenantProvider.GetTenantId(),

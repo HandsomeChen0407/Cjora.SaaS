@@ -65,7 +65,7 @@ public sealed class TenantMiddleware
 
         var tenantId = resolutionResult.TenantId;
 
-        logger.LogInformation(
+        logger.LogDebug(
             "Tenant resolved: TenantId={TenantId}, Source={Source}",
             tenantId,
             resolutionResult.ResolutionSourceName);

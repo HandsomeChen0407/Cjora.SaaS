@@ -39,4 +39,22 @@ public sealed class SysDepartment : SysLongIdTenantAuditedEntity
     /// </summary>
     [SugarColumn(ColumnName = "sort_order", IsNullable = false)]
     public int SortOrder { get; set; }
+
+    /// <summary>
+    /// 负责人（可选）。
+    /// </summary>
+    [SugarColumn(ColumnName = "leader", Length = 128, IsNullable = true)]
+    public string? Leader { get; set; }
+
+    /// <summary>
+    /// 联系电话（可选）。
+    /// </summary>
+    [SugarColumn(ColumnName = "phone", Length = 32, IsNullable = true)]
+    public string? Phone { get; set; }
+
+    /// <summary>
+    /// 是否启用。
+    /// </summary>
+    [SugarColumn(ColumnName = "is_active", IsNullable = false)]
+    public bool IsActive { get; set; } = true;
 }

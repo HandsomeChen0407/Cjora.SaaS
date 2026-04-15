@@ -118,21 +118,12 @@ public sealed class DictTypesController : ControllerBase
     public async Task<IActionResult> Delete(long id, CancellationToken cancellationToken)
     {
         var t = await _types.GetSingleAsync(x => x.Id == id, cancellationToken);
-        if (t is null)
-        {
-            return NotFound();
-        }
+        if (t is null) return NotFound();
+        if (t.IsLocked) return BadRequest("系统锁定字典不允许删除。");
 
-        if (t.IsLocked)
-        {
-            return BadRequest("系统锁定字典不允许删除。");
-        }
-
-        var nItems = await _items.DeleteAsync(x => x.TypeId == id, cancellationToken);
-        _ = nItems;
-
-        var n = await _types.DeleteAsync(x => x.Id == id, cancellationToken);
-        return n == 0 ? NotFound() : NoContent();
+        // 级联软删：先删字典项，再删字典类型。
+        await _items.DeleteAsync(x => x.TypeId == id, cancellationToken);
+        await _types.DeleteAsync(x => x.Id == id, cancellationToken);
+        return NoContent();
     }
 }
-

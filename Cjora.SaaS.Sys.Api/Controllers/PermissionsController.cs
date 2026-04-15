@@ -156,13 +156,9 @@ public sealed class PermissionsController : ControllerBase
     public async Task<IActionResult> Delete(long id, CancellationToken cancellationToken)
     {
         var hasChild = await _perms.GetSingleAsync(x => x.ParentId == id, cancellationToken);
-        if (hasChild is not null)
-        {
-            return BadRequest("含子节点时无法删除。");
-        }
+        if (hasChild is not null) return BadRequest("含子节点时无法删除。");
 
-        var n = await _perms.DeleteAsync(x => x.Id == id, cancellationToken);
-        return n == 0 ? NotFound() : NoContent();
+        var deleted = await _perms.DeleteAsync(x => x.Id == id, cancellationToken);
+        return deleted > 0 ? NoContent() : NotFound();
     }
 }
-

@@ -44,6 +44,8 @@ internal sealed class UserAppService : IUserAppService
             DepartmentId = request.DepartmentId,
             DepartmentName = request.DepartmentName,
             ExternalSubjectId = request.ExternalSubjectId,
+            Email = string.IsNullOrWhiteSpace(request.Email) ? null : request.Email.Trim(),
+            Phone = string.IsNullOrWhiteSpace(request.Phone) ? null : request.Phone.Trim(),
             CreatorUserId = 0,
             CreatedAtUtc = now
         };
@@ -61,6 +63,8 @@ internal sealed class UserAppService : IUserAppService
         u.DepartmentId = request.DepartmentId;
         u.DepartmentName = request.DepartmentName;
         u.ExternalSubjectId = request.ExternalSubjectId;
+        u.Email = string.IsNullOrWhiteSpace(request.Email) ? null : request.Email.Trim();
+        u.Phone = string.IsNullOrWhiteSpace(request.Phone) ? null : request.Phone.Trim();
         u.UpdatedAtUtc = DateTime.UtcNow;
         await _users.UpdateAsync(u, cancellationToken).ConfigureAwait(false);
         return true;
@@ -94,6 +98,8 @@ internal static class UserMapping
             DepartmentId: u.DepartmentId,
             DepartmentName: u.DepartmentName,
             ExternalSubjectId: u.ExternalSubjectId,
+            Email: u.Email,
+            Phone: u.Phone,
             CreatorUserId: u.CreatorUserId,
             CreatedAtUtc: u.CreatedAtUtc,
             UpdatedAtUtc: u.UpdatedAtUtc);

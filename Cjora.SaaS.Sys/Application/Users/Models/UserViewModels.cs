@@ -8,6 +8,8 @@ public sealed record UserVm(
     long? DepartmentId,
     string? DepartmentName,
     string? ExternalSubjectId,
+    string? Email,
+    string? Phone,
     long CreatorUserId,
     DateTime CreatedAtUtc,
     DateTime? UpdatedAtUtc);

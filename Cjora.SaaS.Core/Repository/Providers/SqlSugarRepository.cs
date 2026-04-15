@@ -1,7 +1,9 @@
 using System.Linq.Expressions;
+using Cjora.SaaS.Core.Auth.Abstractions;
 using Cjora.SaaS.Core.MultiTenancy.Abstractions;
 using Cjora.SaaS.Core.Repository.Abstractions;
 using Cjora.SaaS.Core.Repository.Models;
+using Microsoft.Extensions.DependencyInjection;
 using SqlSugar;
 
 namespace Cjora.SaaS.Core.Repository.Providers;
@@ -13,13 +15,17 @@ namespace Cjora.SaaS.Core.Repository.Providers;
 public sealed class SqlSugarRepository<TEntity> : IRepository<TEntity>
     where TEntity : class, ITenantScopedEntity, new()
 {
+    private static readonly bool IsSoftDeletable = typeof(ISoftDeleteEntity).IsAssignableFrom(typeof(TEntity));
+
     private readonly ISqlSugarClient _databaseClient;
     private readonly ITenantProvider _tenantProvider;
+    private readonly IServiceProvider _services;
 
-    public SqlSugarRepository(ISqlSugarClient databaseClient, ITenantProvider tenantProvider)
+    public SqlSugarRepository(ISqlSugarClient databaseClient, ITenantProvider tenantProvider, IServiceProvider services)
     {
         _databaseClient = databaseClient;
         _tenantProvider = tenantProvider;
+        _services = services;
     }
 
     public async Task<List<TEntity>> GetListAsync(CancellationToken cancellationToken = default)
@@ -79,6 +85,23 @@ public sealed class SqlSugarRepository<TEntity> : IRepository<TEntity>
     public async Task<int> DeleteAsync(Expression<Func<TEntity, bool>> predicate, CancellationToken cancellationToken = default)
     {
         var tenantId = _tenantProvider.GetTenantId();
+
+        if (IsSoftDeletable)
+        {
+            var user = _services.GetService<ICurrentUser>();
+            long? deleterId = user is { UserId: > 0 } ? user.UserId : null;
+            var now = DateTime.UtcNow;
+
+            // EnableUpdateQueryFilter 会自动附加租户与软删 WHERE 条件，此处显式加租户过滤保持双重防护一致性。
+            return await _databaseClient.Updateable<TEntity>()
+                .SetColumns(nameof(ISoftDeleteEntity.IsDeleted), true)
+                .SetColumns(nameof(ISoftDeleteEntity.DeletedAtUtc), now)
+                .SetColumns(nameof(ISoftDeleteEntity.DeleterUserId), deleterId)
+                .Where(entity => entity.TenantId == tenantId)
+                .Where(predicate)
+                .ExecuteCommandAsync();
+        }
+
         return await _databaseClient.Deleteable<TEntity>()
             .Where(entity => entity.TenantId == tenantId)
             .Where(predicate)

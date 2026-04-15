@@ -6,12 +6,16 @@ public sealed record CreateUserRequest(
     bool IsActive,
     long? DepartmentId,
     string? DepartmentName,
-    string? ExternalSubjectId);
+    string? ExternalSubjectId,
+    string? Email,
+    string? Phone);
 
 public sealed record UpdateUserRequest(
     string DisplayName,
     bool IsActive,
     long? DepartmentId,
     string? DepartmentName,
-    string? ExternalSubjectId);
+    string? ExternalSubjectId,
+    string? Email,
+    string? Phone);
 

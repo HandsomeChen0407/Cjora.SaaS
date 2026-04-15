@@ -23,7 +23,7 @@ namespace Cjora.SaaS.Sys.Entities;
 /// 实现 <see cref="ICreatorOwnedEntity"/> 后，在 <see cref="DataScopeKind.Self"/> 数据范围下，SqlSugar 全局过滤器会按创建人限制行集（见 Core <c>SqlSugarTenantClientFactory</c>）。
 /// </para>
 /// </remarks>
-public abstract class SysLongIdTenantAuditedEntity : ITenantScopedEntity, ICreatorOwnedEntity
+public abstract class SysLongIdTenantAuditedEntity : ITenantScopedEntity, ICreatorOwnedEntity, ISoftDeleteEntity
 {
     /// <summary>主键。</summary>
     [SugarColumn(ColumnName = "id", IsPrimaryKey = true, IsIdentity = true, IsNullable = false)]
@@ -44,13 +44,25 @@ public abstract class SysLongIdTenantAuditedEntity : ITenantScopedEntity, ICreat
     /// <summary>更新时间（UTC）。</summary>
     [SugarColumn(ColumnName = "updated_at_utc", IsNullable = true)]
     public DateTime? UpdatedAtUtc { get; set; }
+
+    /// <summary>逻辑删除标记。</summary>
+    [SugarColumn(ColumnName = "is_deleted", IsNullable = false)]
+    public bool IsDeleted { get; set; }
+
+    /// <summary>删除时间（UTC）。</summary>
+    [SugarColumn(ColumnName = "deleted_at_utc", IsNullable = true)]
+    public DateTime? DeletedAtUtc { get; set; }
+
+    /// <summary>删除人用户 Id（可空）。</summary>
+    [SugarColumn(ColumnName = "deleter_user_id", IsNullable = true)]
+    public long? DeleterUserId { get; set; }
 }
 
 /// <summary>
 /// 同时参与「部门行级」与「创建人」过滤的实体基类（对应 Core 中 <see cref="IDepartmentScopedEntity"/> 与 <see cref="ICreatorOwnedEntity"/>；数据范围由 <see cref="Cjora.SaaS.Core.DataPermission.IDataPermissionContext.Scope"/> 决定其一）。
 /// </summary>
 [SugarIndex("idx_tenant_dept", nameof(TenantId), OrderByType.Asc, nameof(DepartmentId), OrderByType.Asc)]
-public abstract class SysLongIdDepartmentOwnedAuditedEntity : ITenantScopedEntity, IDepartmentScopedEntity, ICreatorOwnedEntity
+public abstract class SysLongIdDepartmentOwnedAuditedEntity : ITenantScopedEntity, IDepartmentScopedEntity, ICreatorOwnedEntity, ISoftDeleteEntity
 {
     /// <summary>主键。</summary>
     [SugarColumn(ColumnName = "id", IsPrimaryKey = true, IsIdentity = true, IsNullable = false)]
@@ -75,12 +87,24 @@ public abstract class SysLongIdDepartmentOwnedAuditedEntity : ITenantScopedEntit
     /// <summary>更新时间（UTC）。</summary>
     [SugarColumn(ColumnName = "updated_at_utc", IsNullable = true)]
     public DateTime? UpdatedAtUtc { get; set; }
+
+    /// <summary>逻辑删除标记。</summary>
+    [SugarColumn(ColumnName = "is_deleted", IsNullable = false)]
+    public bool IsDeleted { get; set; }
+
+    /// <summary>删除时间（UTC）。</summary>
+    [SugarColumn(ColumnName = "deleted_at_utc", IsNullable = true)]
+    public DateTime? DeletedAtUtc { get; set; }
+
+    /// <summary>删除人用户 Id（可空）。</summary>
+    [SugarColumn(ColumnName = "deleter_user_id", IsNullable = true)]
+    public long? DeleterUserId { get; set; }
 }
 
 /// <summary>
 /// 租户注册表使用的字符串主键与 UTC 审计字段基类（无 <see cref="ITenantScopedEntity"/>）。
 /// </summary>
-public abstract class SysStringIdAuditedEntity
+public abstract class SysStringIdAuditedEntity : ISoftDeleteEntity
 {
     /// <summary>主键，与业务表 <c>tenant_id</c> 同源。</summary>
     [SugarColumn(ColumnName = "id", IsPrimaryKey = true, Length = 64, IsNullable = false)]
@@ -93,4 +117,16 @@ public abstract class SysStringIdAuditedEntity
     /// <summary>更新时间（UTC）。</summary>
     [SugarColumn(ColumnName = "updated_at_utc", IsNullable = true)]
     public DateTime? UpdatedAtUtc { get; set; }
+
+    /// <summary>逻辑删除标记。</summary>
+    [SugarColumn(ColumnName = "is_deleted", IsNullable = false)]
+    public bool IsDeleted { get; set; }
+
+    /// <summary>删除时间（UTC）。</summary>
+    [SugarColumn(ColumnName = "deleted_at_utc", IsNullable = true)]
+    public DateTime? DeletedAtUtc { get; set; }
+
+    /// <summary>删除人用户 Id（可空）。</summary>
+    [SugarColumn(ColumnName = "deleter_user_id", IsNullable = true)]
+    public long? DeleterUserId { get; set; }
 }

@@ -66,6 +66,10 @@ public sealed class SysUserDto
 
     public string? ExternalSubjectId { get; init; }
 
+    public string? Email { get; init; }
+
+    public string? Phone { get; init; }
+
     public long CreatorUserId { get; init; }
 
     public DateTime CreatedAtUtc { get; init; }
@@ -86,6 +90,10 @@ public sealed class SysUserCreateRequest
     public string? DepartmentName { get; init; }
 
     public string? ExternalSubjectId { get; init; }
+
+    public string? Email { get; init; }
+
+    public string? Phone { get; init; }
 }
 
 public sealed class SysUserUpdateRequest
@@ -99,6 +107,10 @@ public sealed class SysUserUpdateRequest
     public string? DepartmentName { get; init; }
 
     public string? ExternalSubjectId { get; init; }
+
+    public string? Email { get; init; }
+
+    public string? Phone { get; init; }
 }
 
 public sealed class SysRoleDto
@@ -112,6 +124,18 @@ public sealed class SysRoleDto
     public string? PermissionCodesJson { get; init; }
 
     public bool IsSystem { get; init; }
+
+    public bool IsActive { get; init; }
+
+    public string? Remark { get; init; }
+
+    public string? MenuIdsJson { get; init; }
+
+    public string DataScope { get; init; } = "tenant";
+
+    public string? DeptIdsJson { get; init; }
+
+    public bool SkipDataPerm { get; init; }
 
     public long CreatorUserId { get; init; }
 
@@ -129,6 +153,18 @@ public sealed class SysRoleCreateRequest
     public IReadOnlyList<string>? PermissionCodes { get; init; }
 
     public bool IsSystem { get; init; }
+
+    public bool IsActive { get; init; } = true;
+
+    public string? Remark { get; init; }
+
+    public IReadOnlyList<string>? MenuIds { get; init; }
+
+    public string DataScope { get; init; } = "tenant";
+
+    public IReadOnlyList<long>? DeptIds { get; init; }
+
+    public bool SkipDataPerm { get; init; }
 }
 
 public sealed class SysRoleUpdateRequest
@@ -138,6 +174,18 @@ public sealed class SysRoleUpdateRequest
     public IReadOnlyList<string>? PermissionCodes { get; init; }
 
     public bool IsSystem { get; init; }
+
+    public bool IsActive { get; init; } = true;
+
+    public string? Remark { get; init; }
+
+    public IReadOnlyList<string>? MenuIds { get; init; }
+
+    public string DataScope { get; init; } = "tenant";
+
+    public IReadOnlyList<long>? DeptIds { get; init; }
+
+    public bool SkipDataPerm { get; init; }
 }
 
 public sealed class SysDepartmentDto
@@ -151,6 +199,12 @@ public sealed class SysDepartmentDto
     public string? Code { get; init; }
 
     public int SortOrder { get; init; }
+
+    public string? Leader { get; init; }
+
+    public string? Phone { get; init; }
+
+    public bool IsActive { get; init; }
 
     public long CreatorUserId { get; init; }
 
@@ -168,6 +222,12 @@ public sealed class SysDepartmentCreateRequest
     public string? Code { get; init; }
 
     public int SortOrder { get; init; }
+
+    public string? Leader { get; init; }
+
+    public string? Phone { get; init; }
+
+    public bool IsActive { get; init; } = true;
 }
 
 public sealed class SysDepartmentUpdateRequest
@@ -179,6 +239,12 @@ public sealed class SysDepartmentUpdateRequest
     public string? Code { get; init; }
 
     public int SortOrder { get; init; }
+
+    public string? Leader { get; init; }
+
+    public string? Phone { get; init; }
+
+    public bool IsActive { get; init; } = true;
 }
 
 public sealed class SysUserRoleDto

@@ -45,4 +45,16 @@ public sealed class SysUser : SysLongIdTenantAuditedEntity
     /// </summary>
     [SugarColumn(ColumnName = "external_subject_id", Length = 128, IsNullable = true)]
     public string? ExternalSubjectId { get; set; }
+
+    /// <summary>
+    /// 邮箱（可选）。
+    /// </summary>
+    [SugarColumn(ColumnName = "email", Length = 256, IsNullable = true)]
+    public string? Email { get; set; }
+
+    /// <summary>
+    /// 手机号（可选）。
+    /// </summary>
+    [SugarColumn(ColumnName = "phone", Length = 32, IsNullable = true)]
+    public string? Phone { get; set; }
 }

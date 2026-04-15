@@ -58,6 +58,9 @@ public sealed class DepartmentsController : ControllerBase
             Name = request.Name.Trim(),
             Code = request.Code,
             SortOrder = request.SortOrder,
+            Leader = string.IsNullOrWhiteSpace(request.Leader) ? null : request.Leader.Trim(),
+            Phone = string.IsNullOrWhiteSpace(request.Phone) ? null : request.Phone.Trim(),
+            IsActive = request.IsActive,
             CreatorUserId = 0,
             CreatedAtUtc = now
         };
@@ -80,6 +83,9 @@ public sealed class DepartmentsController : ControllerBase
         d.Name = string.IsNullOrWhiteSpace(request.Name) ? d.Name : request.Name.Trim();
         d.Code = request.Code;
         d.SortOrder = request.SortOrder;
+        d.Leader = string.IsNullOrWhiteSpace(request.Leader) ? null : request.Leader.Trim();
+        d.Phone = string.IsNullOrWhiteSpace(request.Phone) ? null : request.Phone.Trim();
+        d.IsActive = request.IsActive;
         d.UpdatedAtUtc = DateTime.UtcNow;
         await _departments.UpdateAsync(d, cancellationToken);
         return Ok(d.ToDto());
@@ -88,7 +94,13 @@ public sealed class DepartmentsController : ControllerBase
     [HttpDelete("{id:long}")]
     public async Task<IActionResult> Delete(long id, CancellationToken cancellationToken)
     {
-        var n = await _departments.DeleteAsync(d => d.Id == id, cancellationToken);
-        return n == 0 ? NotFound() : NoContent();
+        var d = await _departments.GetSingleAsync(x => x.Id == id, cancellationToken);
+        if (d is null) return NotFound();
+
+        var hasChild = await _departments.GetSingleAsync(x => x.ParentId == id, cancellationToken);
+        if (hasChild is not null) return BadRequest("请先删除子部门。");
+
+        await _departments.DeleteAsync(x => x.Id == id, cancellationToken);
+        return NoContent();
     }
 }

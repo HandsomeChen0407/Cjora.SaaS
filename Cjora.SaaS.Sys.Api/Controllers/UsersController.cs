@@ -55,7 +55,9 @@ public sealed class UsersController : ControllerBase
                         IsActive: request.IsActive,
                         DepartmentId: request.DepartmentId,
                         DepartmentName: request.DepartmentName,
-                        ExternalSubjectId: request.ExternalSubjectId),
+                        ExternalSubjectId: request.ExternalSubjectId,
+                        Email: request.Email,
+                        Phone: request.Phone),
                     cancellationToken)
                 .ConfigureAwait(false);
 
@@ -80,7 +82,9 @@ public sealed class UsersController : ControllerBase
                     IsActive: request.IsActive,
                     DepartmentId: request.DepartmentId,
                     DepartmentName: request.DepartmentName,
-                    ExternalSubjectId: request.ExternalSubjectId),
+                    ExternalSubjectId: request.ExternalSubjectId,
+                    Email: request.Email,
+                    Phone: request.Phone),
                 cancellationToken)
             .ConfigureAwait(false);
 
@@ -109,6 +113,8 @@ internal static class UserApiMapping
             DepartmentId = u.DepartmentId,
             DepartmentName = u.DepartmentName,
             ExternalSubjectId = u.ExternalSubjectId,
+            Email = u.Email,
+            Phone = u.Phone,
             CreatorUserId = u.CreatorUserId,
             CreatedAtUtc = u.CreatedAtUtc,
             UpdatedAtUtc = u.UpdatedAtUtc

@@ -51,6 +51,16 @@ public sealed class RolesController : ControllerBase
             return BadRequest("Code 与 Name 必填。");
         }
 
+        if (request.DataScope is not ("all" or "tenant" or "dept" or "self"))
+        {
+            return BadRequest("DataScope 仅支持 all / tenant / dept / self。");
+        }
+
+        if (request.DataScope == "dept" && (request.DeptIds is null || request.DeptIds.Count == 0))
+        {
+            return BadRequest("当 DataScope=dept 时，DeptIds 必填。");
+        }
+
         var now = DateTime.UtcNow;
         var entity = new SysRole
         {
@@ -58,6 +68,12 @@ public sealed class RolesController : ControllerBase
             Name = request.Name.Trim(),
             PermissionCodesJson = EntityMapper.ToPermissionCodesJson(request.PermissionCodes?.ToArray()),
             IsSystem = request.IsSystem,
+            IsActive = request.IsActive,
+            Remark = string.IsNullOrWhiteSpace(request.Remark) ? null : request.Remark.Trim(),
+            MenuIdsJson = EntityMapper.ToStringArrayJson(request.MenuIds),
+            DataScope = request.DataScope,
+            DeptIdsJson = request.DataScope == "dept" ? EntityMapper.ToLongArrayJson(request.DeptIds) : null,
+            SkipDataPerm = request.SkipDataPerm,
             CreatorUserId = 0,
             CreatedAtUtc = now
         };
@@ -76,9 +92,25 @@ public sealed class RolesController : ControllerBase
             return NotFound();
         }
 
+        if (request.DataScope is not ("all" or "tenant" or "dept" or "self"))
+        {
+            return BadRequest("DataScope 仅支持 all / tenant / dept / self。");
+        }
+
+        if (request.DataScope == "dept" && (request.DeptIds is null || request.DeptIds.Count == 0))
+        {
+            return BadRequest("当 DataScope=dept 时，DeptIds 必填。");
+        }
+
         r.Name = string.IsNullOrWhiteSpace(request.Name) ? r.Name : request.Name.Trim();
         r.PermissionCodesJson = EntityMapper.ToPermissionCodesJson(request.PermissionCodes?.ToArray()) ?? r.PermissionCodesJson;
         r.IsSystem = request.IsSystem;
+        r.IsActive = request.IsActive;
+        r.Remark = string.IsNullOrWhiteSpace(request.Remark) ? null : request.Remark.Trim();
+        r.MenuIdsJson = EntityMapper.ToStringArrayJson(request.MenuIds);
+        r.DataScope = request.DataScope;
+        r.DeptIdsJson = request.DataScope == "dept" ? EntityMapper.ToLongArrayJson(request.DeptIds) : null;
+        r.SkipDataPerm = request.SkipDataPerm;
         r.UpdatedAtUtc = DateTime.UtcNow;
         await _roles.UpdateAsync(r, cancellationToken);
         return Ok(r.ToDto());
@@ -87,7 +119,7 @@ public sealed class RolesController : ControllerBase
     [HttpDelete("{id:long}")]
     public async Task<IActionResult> Delete(long id, CancellationToken cancellationToken)
     {
-        var n = await _roles.DeleteAsync(r => r.Id == id, cancellationToken);
-        return n == 0 ? NotFound() : NoContent();
+        var deleted = await _roles.DeleteAsync(x => x.Id == id, cancellationToken);
+        return deleted > 0 ? NoContent() : NotFound();
     }
 }

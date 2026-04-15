@@ -1,11 +1,18 @@
 using Cjora.SaaS.Sys.Api.Models;
 using Cjora.SaaS.Sys.Entities;
 using Cjora.SaaS.Sys.Permissions;
+using System.Text.Json;
 
 namespace Cjora.SaaS.Sys.Api.Mapping;
 
 internal static class EntityMapper
 {
+    public static string? ToStringArrayJson(IReadOnlyList<string>? values) =>
+        values is null ? null : JsonSerializer.Serialize(values.Where(static x => !string.IsNullOrWhiteSpace(x)).Select(static x => x.Trim()).Distinct().ToArray());
+
+    public static string? ToLongArrayJson(IReadOnlyList<long>? values) =>
+        values is null ? null : JsonSerializer.Serialize(values.Distinct().ToArray());
+
     public static SysTenantDto ToDto(this SysTenant t) =>
         new()
         {
@@ -27,6 +34,8 @@ internal static class EntityMapper
             DepartmentId = u.DepartmentId,
             DepartmentName = u.DepartmentName,
             ExternalSubjectId = u.ExternalSubjectId,
+            Email = u.Email,
+            Phone = u.Phone,
             CreatorUserId = u.CreatorUserId,
             CreatedAtUtc = u.CreatedAtUtc,
             UpdatedAtUtc = u.UpdatedAtUtc
@@ -40,6 +49,12 @@ internal static class EntityMapper
             Name = r.Name,
             PermissionCodesJson = r.PermissionCodesJson,
             IsSystem = r.IsSystem,
+            IsActive = r.IsActive,
+            Remark = r.Remark,
+            MenuIdsJson = r.MenuIdsJson,
+            DataScope = r.DataScope,
+            DeptIdsJson = r.DeptIdsJson,
+            SkipDataPerm = r.SkipDataPerm,
             CreatorUserId = r.CreatorUserId,
             CreatedAtUtc = r.CreatedAtUtc,
             UpdatedAtUtc = r.UpdatedAtUtc
@@ -53,6 +68,9 @@ internal static class EntityMapper
             Name = d.Name,
             Code = d.Code,
             SortOrder = d.SortOrder,
+            Leader = d.Leader,
+            Phone = d.Phone,
+            IsActive = d.IsActive,
             CreatorUserId = d.CreatorUserId,
             CreatedAtUtc = d.CreatedAtUtc,
             UpdatedAtUtc = d.UpdatedAtUtc
