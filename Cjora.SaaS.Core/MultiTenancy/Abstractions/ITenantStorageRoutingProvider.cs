@@ -12,6 +12,8 @@ namespace Cjora.SaaS.Core.MultiTenancy.Abstractions;
 /// <para>
 /// 扩展方式示例：查目录库返回 <see cref="Models.TenantStorageRoutingContext.DedicatedConnectionString"/>；返回分片键供工厂创建客户端；或保持共享物理库并依赖 RLS。
 /// </para>
+/// <para><b>IMPORTANT</b>：真异步实现请在 <c>await</c> 后使用 <c>ConfigureAwait(false)</c>；
+/// <see cref="SqlSugar.Providers.SqlSugarTenantClientFactory"/> 会对本方法结果做同步等待，避免与同步上下文组合时死锁。</para>
 /// </remarks>
 public interface ITenantStorageRoutingProvider
 {

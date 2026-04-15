@@ -29,7 +29,12 @@ public static class SqlSugarTenantClientFactory
         }
 
         var tenantId = tenantProvider.GetTenantId();
-        var route = routingProvider.ResolveAsync(tenantId, CancellationToken.None).GetAwaiter().GetResult();
+        // 同步阻塞：必须 ConfigureAwait(false)，避免自定义路由解析中的 await 捕获同步上下文后与 GetResult 死锁。
+        var route = routingProvider.ResolveAsync(tenantId, CancellationToken.None)
+            .AsTask()
+            .ConfigureAwait(false)
+            .GetAwaiter()
+            .GetResult();
 
         var connectionString = route.UsesSharedPhysicalDatabase
             ? options.MasterConnectionString

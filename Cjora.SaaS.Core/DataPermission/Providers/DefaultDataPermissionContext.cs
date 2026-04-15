@@ -11,7 +11,7 @@ namespace Cjora.SaaS.Core.DataPermission.Providers;
 /// <para>
 /// <b>// CHANGED</b>：使用 <see cref="Lazy{T}"/> 包装 <c>Task&lt;DataPermissionResult&gt;</c>，在 Scoped 内至多触发一次
 /// <see cref="IDataPermissionResolver.ResolveAsync"/>，且懒初始化线程安全；同步属性通过
-/// <c>GetAwaiter().GetResult()</c> 取值（ASP.NET Core 请求线程无同步上下文，与典型 Scoped 解析兼容）。
+/// <c>ConfigureAwait(false).GetAwaiter().GetResult()</c> 取值（降低自定义解析器 await 捕获同步上下文时的死锁风险）。
 /// </para>
 /// </remarks>
 public sealed class DefaultDataPermissionContext : IDataPermissionContext
@@ -33,7 +33,8 @@ public sealed class DefaultDataPermissionContext : IDataPermissionContext
             LazyThreadSafetyMode.ExecutionAndPublication);
     }
 
-    private DataPermissionResult Snapshot => _lazySnapshot.Value.GetAwaiter().GetResult();
+    // ConfigureAwait(false)：自定义 IDataPermissionResolver 若含 await，避免与同步属性读取组合时死锁。
+    private DataPermissionResult Snapshot => _lazySnapshot.Value.ConfigureAwait(false).GetAwaiter().GetResult();
 
     /// <inheritdoc />
     public bool IsDisabled => _scopeState.IsDisabled;
