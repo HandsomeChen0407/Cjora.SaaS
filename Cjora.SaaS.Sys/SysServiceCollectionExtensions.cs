@@ -2,12 +2,14 @@ using Cjora.SaaS.Core.DataPermission.Models;
 using Cjora.SaaS.Core.MultiTenancy.Hosting;
 using Cjora.SaaS.Core.Repository.Hosting;
 using Cjora.SaaS.Core.SqlSugar.Abstractions;
+using Cjora.SaaS.Sys.Application.Users;
 using Cjora.SaaS.Sys.DataPermission;
 using Cjora.SaaS.Sys.MultiTenancy;
 using Cjora.SaaS.Sys.Departments;
 using Cjora.SaaS.Sys.Entities;
 using Cjora.SaaS.Sys.Permissions;
 using Cjora.SaaS.Sys.Repositories;
+using Cjora.SaaS.Sys.Infrastructure.Repositories;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Cjora.SaaS.Sys;
@@ -66,6 +68,10 @@ public static class SysServiceCollectionExtensions
         services.AddSqlSugarTenantRepository<SysDictItem>();
         services.AddScoped<ISysDepartmentExpansionService, SysDepartmentExpansionService>();
         services.AddScoped<IEffectivePermissionResolver, EffectivePermissionResolver>();
+
+        // Application / Infrastructure
+        services.AddScoped<IUserRepository, SqlSugarUserRepository>();
+        services.AddScoped<IUserAppService, UserAppService>();
 
         return services;
     }
