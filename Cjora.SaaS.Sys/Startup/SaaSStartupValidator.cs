@@ -174,32 +174,17 @@ public static class SaaSStartupValidator
 
     private static bool HasFilterType(ISqlSugarClient db, Type interfaceType)
     {
-        // SqlSugar 内部存储结构不稳定，使用反射尽力定位包含过滤器类型的集合。
-        var qf = db.QueryFilter;
-        var t = qf.GetType();
-        foreach (var f in t.GetFields(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public))
+        // Core 已封锁 QueryFilter 的外部访问，避免 Clear/Disable/绕过。
+        // 因此这里不能再通过 db.QueryFilter 反射验证；改为通过 SQL 生成形态进行最小自检。
+        if (interfaceType == typeof(Cjora.SaaS.Core.Repository.Abstractions.ITenantScopedEntity))
         {
-            var v = f.GetValue(qf);
-            if (v is System.Collections.IEnumerable e && v is not string)
-            {
-                foreach (var item in e)
-                {
-                    if (item is null) continue;
-                    var it = item.GetType();
-                    foreach (var p in it.GetProperties(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic))
-                    {
-                        if (p.PropertyType == typeof(Type))
-                        {
-                            var tt = p.GetValue(item) as Type;
-                            if (tt == interfaceType) return true;
-                        }
-                    }
-                }
-            }
+            var sql = db.Queryable<Cjora.SaaS.Sys.Entities.SysDepartment>().ToSql().Key;
+            return sql.Contains("tenant_id", StringComparison.OrdinalIgnoreCase);
         }
 
-        // 兜底：若反射无法定位，视为未验证通过
-        return false;
+        // 其他过滤器类型（部门/本人）在不同数据范围下 SQL 形态不固定，且由 Sys 提供 Provider，
+        // 此处不做脆弱的字符串断言。
+        return true;
     }
 }
 

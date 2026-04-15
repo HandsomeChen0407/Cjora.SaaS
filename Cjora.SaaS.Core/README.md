@@ -9,25 +9,26 @@
 ### 1) 多租户（强隔离 + Fail-Fast）
 
 - **租户 QueryFilter**：所有实现 `ITenantScopedEntity` 的实体自动追加 `TenantId == tenantProvider.GetTenantId()`。
-- **无 HttpContext 禁止隐式租户**：`HttpTenantProvider` 在无 `HttpContext` 且无 `ITenantContextSetter` 显式租户时直接抛 `InvalidOperationException`（除非显式配置允许回退）。
+- **禁止默认租户 / 禁止静默回退**：`TenantMiddleware` / `HttpTenantProvider` 在解析不到租户时直接抛 `InvalidOperationException`（Fail-Fast）。
 - **后台任务租户上下文**：通过 `ITenantContextSetter.Use(tenantId)` 或 `IBackgroundTenantExecutor.RunAsync(tenantId, ...)` 注入租户。
 
 ### 2) 数据权限（EXISTS/JOIN，无 JWT 权限集合）
 
 - **Core 不包含业务权限表**：部门/项目/客户等数据域由业务层（Sys）实现 `ISqlSugarDataPermissionFilterProvider` 注入过滤器。
 - **Department scope 安全门禁**：当 `IDataPermissionContext.Scope == Department` 且未注册任何 `ISqlSugarDataPermissionFilterProvider`，构建客户端时直接抛异常（Fail-Fast）。
-- **Disable() 动态生效**：`IDataPermissionScope.Disable()` 通过 `IDataPermissionContext.IsDisabled` 在过滤表达式内短路为恒真，从 SQL 语义上取消行级限制（租户过滤仍生效）。
+- **Disable() 动态生效且受控**：`IDataPermissionScope.Disable()` 在过滤表达式内短路为恒真（租户过滤仍生效），并且 **仅允许超级管理员或后台任务使用**；HTTP 请求内非 SuperAdmin 调用将直接抛 `UnauthorizedAccessException`。
 
 ### 3) SqlSugar 集成策略（强约束）
 
 - `ISqlSugarClient` 为 **Scoped** 工厂创建。
 - **禁止并发使用同一个 `ISqlSugarClient`**：并发查询（如 `Task.WhenAll`）会触发 guard 并抛异常。
-- **危险清过滤器 API 已封禁**：公开入口不可用（会抛异常或不存在 public 方法），框架内部入口仅允许超级管理员。
+- **过滤器绕过在运行时做不到**：`QueryFilter` 访问与 `ClearFilter/DisableFilter` 类操作在代理层被封锁，调用将直接抛 `UnauthorizedAccessException`。
+- **并发安全工厂**：提供 `ISqlSugarClientFactory.Create()` 为并发场景创建隔离实例（每次创建独立 DI Scope，用完需 `Dispose()` 释放资源）。
 
 ### 4) DataProtection（真实实现边界）
 
 - AES 密文格式：`CJ1:` + Base64(随机IV||密文)；仅带 `CJ1:` 前缀才解密。
-- Hash：`Trim + HashSalt + SHA-256` 小写十六进制；等值查询必须使用同一 `IHashService.ComputeHash`。
+- Hash：`Trim + Salt + SHA-256` 小写十六进制；Salt **必须来自配置**，且在进程启动后固定不变（运行时动态修改不生效）。等值查询必须使用同一 `IHashService.ComputeHash`。
 
 ---
 
@@ -110,6 +111,17 @@ public sealed class MyWorker : BackgroundService
             await db.Queryable<Order>().ToListAsync(stoppingToken);
         });
 }
+```
+
+### 3) 并发查询（正确姿势）
+
+同一 `ISqlSugarClient` 在同一异步流内禁止并发使用；并发场景必须用工厂创建隔离实例：
+
+```csharp
+await Task.WhenAll(
+    _factory.Create().Queryable<A>().ToListAsync(),
+    _factory.Create().Queryable<B>().ToListAsync()
+);
 ```
 
 ---
