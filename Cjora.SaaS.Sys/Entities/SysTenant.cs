@@ -22,4 +22,10 @@ public sealed class SysTenant : SysStringIdAuditedEntity
     /// </summary>
     [SugarColumn(ColumnName = "is_active", IsNullable = false)]
     public bool IsActive { get; set; } = true;
+
+    /// <summary>
+    /// 非空时表示该租户业务数据使用独立物理库；连接串仅存于平台主库，由 Sys 模块的目录库路由提供器解析。
+    /// </summary>
+    [SugarColumn(ColumnName = "dedicated_database_connection_string", Length = 2048, IsNullable = true)]
+    public string? DedicatedDatabaseConnectionString { get; set; }
 }

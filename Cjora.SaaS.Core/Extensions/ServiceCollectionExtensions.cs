@@ -2,6 +2,7 @@ using Cjora.SaaS.Core.Auth.Abstractions;
 using Cjora.SaaS.Core.Auth.Providers;
 using Cjora.SaaS.Core.MultiTenancy.Hosting;
 using Cjora.SaaS.Core.MultiTenancy.Models;
+using Cjora.SaaS.Core.DataProtection.Models;
 using Cjora.SaaS.Core.SqlSugar.Hosting;
 using Cjora.SaaS.Core.SqlSugar.Models;
 using Microsoft.Extensions.DependencyInjection;
@@ -18,11 +19,15 @@ public static class ServiceCollectionExtensions
     /// </summary>
     /// <param name="services">服务集合。</param>
     /// <param name="configureTenant">可选的 <see cref="TenantOptions"/> 配置委托。</param>
+    /// <param name="configureTenantStorageRouting">可选的 <see cref="TenantStorageRoutingOptions"/> 配置委托。</param>
     /// <returns>服务集合。</returns>
-    public static IServiceCollection AddSaaSCore(this IServiceCollection services, Action<TenantOptions>? configureTenant = null)
+    public static IServiceCollection AddSaaSCore(
+        this IServiceCollection services,
+        Action<TenantOptions>? configureTenant = null,
+        Action<TenantStorageRoutingOptions>? configureTenantStorageRouting = null)
     {
         services.AddOptions();
-        services.AddCjoraMultiTenancy(configureTenant);
+        services.AddCjoraMultiTenancy(configureTenant, configureTenantStorageRouting);
         services.AddScoped<ICurrentUser, CurrentUser>();
 
         return services;
@@ -34,15 +39,19 @@ public static class ServiceCollectionExtensions
     /// <param name="services">服务集合。</param>
     /// <param name="configureTenant">可选租户选项。</param>
     /// <param name="configureSqlSugar">SqlSugar 连接与行为。</param>
+    /// <param name="configureTenantStorageRouting">可选租户存储路由（独立物理库映射等）。</param>
+    /// <param name="configureDataProtection">可选字段级 DataProtection（加密/哈希/自动解密等，默认全关）。</param>
     /// <returns>服务集合。</returns>
     public static IServiceCollection AddCjoraSaaSWithSqlSugar(
         this IServiceCollection services,
         Action<TenantOptions>? configureTenant,
-        Action<SqlSugarSaaSOptions> configureSqlSugar)
+        Action<SqlSugarSaaSOptions> configureSqlSugar,
+        Action<TenantStorageRoutingOptions>? configureTenantStorageRouting = null,
+        Action<DataProtectionOptions>? configureDataProtection = null)
     {
         ArgumentNullException.ThrowIfNull(configureSqlSugar);
-        services.AddSaaSCore(configureTenant);
-        services.AddCjoraSqlSugarSaaS(configureSqlSugar);
+        services.AddSaaSCore(configureTenant, configureTenantStorageRouting);
+        services.AddCjoraSqlSugarSaaS(configureSqlSugar, configureDataProtection);
         return services;
     }
 }

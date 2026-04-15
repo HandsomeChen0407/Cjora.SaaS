@@ -1,6 +1,8 @@
 using Cjora.SaaS.Core.DataPermission.Models;
+using Cjora.SaaS.Core.MultiTenancy.Hosting;
 using Cjora.SaaS.Core.Repository.Hosting;
 using Cjora.SaaS.Sys.DataPermission;
+using Cjora.SaaS.Sys.MultiTenancy;
 using Cjora.SaaS.Sys.Departments;
 using Cjora.SaaS.Sys.Entities;
 using Cjora.SaaS.Sys.Permissions;
@@ -23,6 +25,7 @@ public static class SysServiceCollectionExtensions
     /// <remarks>
     /// <para>
     /// 需已注册 <c>ISqlSugarClient</c>、<see cref="Cjora.SaaS.Core.MultiTenancy.ITenantProvider"/> 与 <see cref="Cjora.SaaS.Core.Auth.ICurrentUser"/>（例如 <see cref="Cjora.SaaS.Core.Extensions.ServiceCollectionExtensions.AddCjoraSaaSWithSqlSugar"/>）。
+    /// 本方法会将 Core 默认的 <c>ITenantStorageRoutingProvider</c> 替换为基于主库 <c>sys_tenant.dedicated_database_connection_string</c> 的实现；独立库连接串请写入该列而非 appsettings。
     /// </para>
     /// <para>
     /// 建表请使用 SqlSugar <c>CodeFirst</c> 或迁移脚本。实现 <see cref="SysLongIdTenantAuditedEntity"/> / <see cref="SysLongIdDepartmentOwnedAuditedEntity"/> 的实体在插入/更新时 <c>tenant_id</c> 由 Core SqlSugar AOP 写入；<c>creator_user_id</c> 在开启 <see cref="Cjora.SaaS.Core.SqlSugarInfrastructure.SqlSugarSaaSOptions.AutoFillCreatorUserIdOnInsert"/> 且插入值为 <c>0</c> 时由 AOP 填充。
@@ -41,6 +44,8 @@ public static class SysServiceCollectionExtensions
         {
             services.Configure(configureDataPermissionClaims);
         }
+
+        services.ReplaceTenantStorageRoutingProvider<SysTenantTableStorageRoutingProvider>();
 
         services.AddScoped<ISysTenantRepository, SysTenantRepository>();
 

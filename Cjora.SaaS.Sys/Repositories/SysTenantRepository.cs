@@ -1,10 +1,12 @@
+using Cjora.SaaS.Core.SqlSugar.Constants;
 using Cjora.SaaS.Sys.Entities;
+using Microsoft.Extensions.DependencyInjection;
 using SqlSugar;
 
 namespace Cjora.SaaS.Sys.Repositories;
 
 /// <summary>
-/// 基于 <see cref="ISqlSugarClient"/> 的 <see cref="SysTenant"/> 仓储；依赖宿主注入的连接（共享库或主库）。
+/// 基于 Keyed <see cref="ISqlSugarClient"/>（目录库）的 <see cref="SysTenant"/> 仓储；独立物理库场景下 <c>sys_tenant</c> 仅存于平台主库。
 /// </summary>
 public sealed class SysTenantRepository : ISysTenantRepository
 {
@@ -13,8 +15,8 @@ public sealed class SysTenantRepository : ISysTenantRepository
     /// <summary>
     /// 初始化 <see cref="SysTenantRepository"/>。
     /// </summary>
-    /// <param name="databaseClient">SqlSugar 客户端。</param>
-    public SysTenantRepository(ISqlSugarClient databaseClient)
+    /// <param name="databaseClient">连接 <see cref="Cjora.SaaS.Core.SqlSugar.Models.SqlSugarSaaSOptions.MasterConnectionString"/> 的 SqlSugar 客户端。</param>
+    public SysTenantRepository([FromKeyedServices(SqlSugarKeyedServiceKeys.Catalog)] ISqlSugarClient databaseClient)
     {
         _databaseClient = databaseClient;
     }

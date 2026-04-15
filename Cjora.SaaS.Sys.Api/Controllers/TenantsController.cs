@@ -45,6 +45,9 @@ public sealed class TenantsController : ControllerBase
             Id = request.Id.Trim(),
             Name = request.Name.Trim(),
             IsActive = request.IsActive,
+            DedicatedDatabaseConnectionString = string.IsNullOrWhiteSpace(request.DedicatedDatabaseConnectionString)
+                ? null
+                : request.DedicatedDatabaseConnectionString.Trim(),
             CreatedAtUtc = now
         };
 
@@ -63,6 +66,13 @@ public sealed class TenantsController : ControllerBase
 
         t.Name = string.IsNullOrWhiteSpace(request.Name) ? t.Name : request.Name.Trim();
         t.IsActive = request.IsActive;
+        if (request.DedicatedDatabaseConnectionString is not null)
+        {
+            t.DedicatedDatabaseConnectionString = string.IsNullOrWhiteSpace(request.DedicatedDatabaseConnectionString)
+                ? null
+                : request.DedicatedDatabaseConnectionString.Trim();
+        }
+
         t.UpdatedAtUtc = DateTime.UtcNow;
         await _tenants.UpdateAsync(t, cancellationToken);
         return Ok(t.ToDto());

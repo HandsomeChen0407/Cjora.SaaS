@@ -1,8 +1,9 @@
-using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Options;
 using Cjora.SaaS.Core.MultiTenancy.Abstractions;
 using Cjora.SaaS.Core.MultiTenancy.Constants;
 using Cjora.SaaS.Core.MultiTenancy.Models;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Cjora.SaaS.Core.MultiTenancy.Middleware;
 
@@ -16,9 +17,14 @@ namespace Cjora.SaaS.Core.MultiTenancy.Middleware;
 /// <item><description>将最终租户标识与解析来源写入 <see cref="TenantHttpContextKeys"/>，避免后续组件重复解析。</description></item>
 /// <item><description>可选地把租户写回配置请求头，兼容只读 Header 的下游逻辑。</description></item>
 /// </list>
-/// <para><b>与认证的顺序</b></para>
+/// <para><b>与认证的顺序（重要）</b></para>
 /// <para>
-/// 若租户仅来自 JWT，应在 <c>UseAuthentication</c> 之后注册本中间件；若来自 Header/子域名且认证策略依赖租户，则按安全模型前置或后置。
+/// 若启用 <see cref="TenantOptions.EnableJwtClaimTenantResolution"/> 且依赖令牌中的租户声明，则必须在管道中把本中间件置于
+/// <c>UseAuthentication()</c> <strong>之后</strong>，否则 <see cref="HttpContext.User"/> 未水合，JWT 分支恒为失败并可能回退到默认租户，
+/// 存在串租或越权风险。仅使用 Header/子域名解析时可按网关模型前置或后置。
+/// </para>
+/// <para>
+/// 当 JWT 租户解析开启而当前用户未认证时，会写入 <see cref="LogLevel.Warning"/> 级别日志，便于发现错误管道顺序或匿名流量误配置。
 /// </para>
 /// </remarks>
 public sealed class TenantMiddleware
@@ -40,22 +46,34 @@ public sealed class TenantMiddleware
     /// <param name="context">HTTP 上下文。</param>
     /// <param name="optionsAccessor">租户选项。</param>
     /// <param name="tenantIdentifierResolver">租户解析器。</param>
+    /// <param name="logger">诊断日志。</param>
     /// <returns>异步任务。</returns>
     public async Task InvokeAsync(
         HttpContext context,
         IOptions<TenantOptions> optionsAccessor,
-        ITenantIdentifierResolver tenantIdentifierResolver)
+        ITenantIdentifierResolver tenantIdentifierResolver,
+        ILogger<TenantMiddleware> logger)
     {
         var options = optionsAccessor.Value;
 
         var resolutionResult = await tenantIdentifierResolver.ResolveAsync(context, context.RequestAborted).ConfigureAwait(false);
 
-        // 组合解析器在无匹配时会回退默认租户；此处再防一层配置为空。
         var tenantId = string.IsNullOrWhiteSpace(resolutionResult.TenantId) ? options.DefaultTenantId : resolutionResult.TenantId;
+
+        logger.LogInformation(
+            "Tenant resolved: TenantId={TenantId}, Source={Source}, UsedDefaultFallback={UsedDefaultFallback}",
+            tenantId,
+            resolutionResult.ResolutionSourceName,
+            resolutionResult.UsedDefaultFallback);
+
+        if (options.EnableJwtClaimTenantResolution && context.User?.Identity?.IsAuthenticated != true)
+        {
+            logger.LogWarning(
+                "EnableJwtClaimTenantResolution is true but the current user is not authenticated; JWT claim-based tenant resolution will be skipped for this request. If tenant id must come from JWT, register UseTenantResolution after UseAuthentication. See Cjora.SaaS.Core README (MultiTenancy / pipeline order).");
+        }
 
         if (options.InjectDefaultTenantHeaderWhenMissing && !context.Request.Headers.ContainsKey(options.TenantIdHeaderName))
         {
-            // 部分组件只认 Header，与 Items / ITenantProvider 对齐。
             context.Request.Headers[options.TenantIdHeaderName] = tenantId;
         }
 

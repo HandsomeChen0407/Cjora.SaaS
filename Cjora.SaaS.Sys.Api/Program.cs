@@ -1,7 +1,9 @@
 using Cjora.SaaS.Core.Extensions;
+using Cjora.SaaS.Core.SqlSugar.Constants;
 using Cjora.SaaS.Sys;
 using Cjora.SaaS.Sys.Entities;
 using Cjora.SaaS.Sys.Repositories;
+using Microsoft.Extensions.DependencyInjection;
 using SqlSugar;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -49,9 +51,11 @@ var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())
 {
+    var catalogDb = scope.ServiceProvider.GetRequiredKeyedService<ISqlSugarClient>(SqlSugarKeyedServiceKeys.Catalog);
+    catalogDb.CodeFirst.InitTables(typeof(SysTenant));
+
     var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
     db.CodeFirst.InitTables(
-        typeof(SysTenant),
         typeof(SysUser),
         typeof(SysRole),
         typeof(SysDepartment),

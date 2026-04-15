@@ -20,6 +20,9 @@ public sealed class SysTenantDto
 
     public bool IsActive { get; init; }
 
+    /// <summary>非空表示该租户使用独立物理库；注意接口鉴权与密钥保护。</summary>
+    public string? DedicatedDatabaseConnectionString { get; init; }
+
     public DateTime CreatedAtUtc { get; init; }
 
     public DateTime? UpdatedAtUtc { get; init; }
@@ -32,6 +35,9 @@ public sealed class SysTenantCreateRequest
     public string Name { get; init; } = "";
 
     public bool IsActive { get; init; } = true;
+
+    /// <summary>可选；非空则该租户业务库使用此连接串。</summary>
+    public string? DedicatedDatabaseConnectionString { get; init; }
 }
 
 public sealed class SysTenantUpdateRequest
@@ -39,6 +45,9 @@ public sealed class SysTenantUpdateRequest
     public string Name { get; init; } = "";
 
     public bool IsActive { get; init; }
+
+    /// <summary>传入 <see langword="null"/> 表示不修改；传入空字符串可清空独立库配置。</summary>
+    public string? DedicatedDatabaseConnectionString { get; init; }
 }
 
 public sealed class SysUserDto

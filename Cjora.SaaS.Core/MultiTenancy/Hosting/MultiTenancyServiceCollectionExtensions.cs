@@ -16,8 +16,12 @@ public static class MultiTenancyServiceCollectionExtensions
     /// </summary>
     /// <param name="services">服务集合。</param>
     /// <param name="configureTenant">可选 <see cref="TenantOptions"/> 配置。</param>
+    /// <param name="configureTenantStorageRouting">可选 <see cref="TenantStorageRoutingOptions"/>（独立物理库映射等）；宿主也可另行 <c>services.Configure&lt;TenantStorageRoutingOptions&gt;(configuration.GetSection(...))</c>。</param>
     /// <returns>服务集合。</returns>
-    public static IServiceCollection AddCjoraMultiTenancy(this IServiceCollection services, Action<TenantOptions>? configureTenant = null)
+    public static IServiceCollection AddCjoraMultiTenancy(
+        this IServiceCollection services,
+        Action<TenantOptions>? configureTenant = null,
+        Action<TenantStorageRoutingOptions>? configureTenantStorageRouting = null)
     {
         services.AddOptions();
 
@@ -30,11 +34,20 @@ public static class MultiTenancyServiceCollectionExtensions
             services.Configure<TenantOptions>(_ => { });
         }
 
+        if (configureTenantStorageRouting is not null)
+        {
+            services.Configure(configureTenantStorageRouting);
+        }
+        else
+        {
+            services.Configure<TenantStorageRoutingOptions>(_ => { });
+        }
+
         services.AddHttpContextAccessor();
 
         services.AddScoped<ITenantIdentifierResolver, TenantIdentifierResolver>();
         services.AddScoped<ITenantProvider, HttpTenantProvider>();
-        services.AddScoped<ITenantStorageRoutingProvider, SharedPhysicalDatabaseTenantStorageRoutingProvider>();
+        services.AddScoped<ITenantStorageRoutingProvider, ConfiguredTenantStorageRoutingProvider>();
 
         return services;
     }

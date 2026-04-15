@@ -12,6 +12,7 @@ internal static class EntityMapper
             Id = t.Id,
             Name = t.Name,
             IsActive = t.IsActive,
+            DedicatedDatabaseConnectionString = t.DedicatedDatabaseConnectionString,
             CreatedAtUtc = t.CreatedAtUtc,
             UpdatedAtUtc = t.UpdatedAtUtc
         };
