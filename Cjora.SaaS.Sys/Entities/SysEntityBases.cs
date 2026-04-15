@@ -49,6 +49,7 @@ public abstract class SysLongIdTenantAuditedEntity : ITenantScopedEntity, ICreat
 /// <summary>
 /// 同时参与「部门行级」与「创建人」过滤的实体基类（对应 Core 中 <see cref="IDepartmentScopedEntity"/> 与 <see cref="ICreatorOwnedEntity"/>；数据范围由 <see cref="Cjora.SaaS.Core.DataPermission.IDataPermissionContext.Scope"/> 决定其一）。
 /// </summary>
+[SugarIndex("idx_tenant_dept", nameof(TenantId), OrderByType.Asc, nameof(DepartmentId), OrderByType.Asc)]
 public abstract class SysLongIdDepartmentOwnedAuditedEntity : ITenantScopedEntity, IDepartmentScopedEntity, ICreatorOwnedEntity
 {
     /// <summary>主键。</summary>

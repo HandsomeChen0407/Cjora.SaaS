@@ -5,6 +5,7 @@ using Cjora.SaaS.Core.DataProtection.Hosting;
 using Cjora.SaaS.Core.DataProtection.Models;
 using Cjora.SaaS.Core.SqlSugar.Constants;
 using Cjora.SaaS.Core.SqlSugar.Models;
+using Cjora.SaaS.Core.SqlSugar.Abstractions;
 using Cjora.SaaS.Core.SqlSugar.Providers;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -39,6 +40,7 @@ public static class SqlSugarServiceCollectionExtensions
             new DefaultDataPermissionContext(
                 sp.GetRequiredService<IDataPermissionResolver>(),
                 sp.GetRequiredService<DataPermissionScopeState>()));
+        services.TryAddScoped<ISqlSugarClientGuard, AsyncLocalSqlSugarClientGuard>();
         services.AddKeyedScoped<ISqlSugarClient>(
             SqlSugarKeyedServiceKeys.Catalog,
             static (sp, _) => SqlSugarCatalogClientFactory.Create(sp));

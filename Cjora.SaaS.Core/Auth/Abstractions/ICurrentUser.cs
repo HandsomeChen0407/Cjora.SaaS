@@ -32,6 +32,14 @@ public interface ICurrentUser
     bool IsValidUser => UserId > 0;
 
     /// <summary>
+    /// 是否为平台级超级管理员（可执行跨租户运维等高危操作）。
+    /// </summary>
+    /// <remarks>
+    /// 默认按声明 <c>is_super_admin</c> == <c>1</c> 判断；宿主可通过自定义 <see cref="ICurrentUser"/> 实现覆盖策略。
+    /// </remarks>
+    bool IsSuperAdmin => string.Equals(FindClaim("is_super_admin"), "1", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
     /// 按声明类型查找原始字符串值；不存在或类型名为空时返回 <see langword="null"/>。
     /// </summary>
     /// <param name="claimType">声明类型，可为 URI 或短名（如 <c>sub</c>）。</param>

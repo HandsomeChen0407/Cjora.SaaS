@@ -33,8 +33,28 @@ internal static class SqlSugarSaaSClientBuilder
 
         ApplyGlobalQueryFilters(client, services, tenantProvider, dataPermission);
         SqlSugarDataProtectionAop.RegisterCompositeDataExecuting(client, services, options, tenantProvider);
+        RegisterClientGuard(client, services);
 
         return client;
+    }
+
+    private static void RegisterClientGuard(ISqlSugarClient client, IServiceProvider services)
+    {
+        var guard = services.GetService<ISqlSugarClientGuard>();
+        if (guard is null)
+        {
+            return;
+        }
+
+        // Fail-Fast 并发检测：进入执行前标记，执行后清理。
+        client.Aop.OnLogExecuting = (_, _) => guard.Enter();
+        client.Aop.OnLogExecuted = (_, _) =>
+        {
+            if (guard is Cjora.SaaS.Core.SqlSugar.Providers.AsyncLocalSqlSugarClientGuard)
+            {
+                Cjora.SaaS.Core.SqlSugar.Providers.AsyncLocalSqlSugarClientGuard.Exit();
+            }
+        };
     }
 
     private static void ApplyGlobalQueryFilters(
@@ -50,7 +70,14 @@ internal static class SqlSugarSaaSClientBuilder
 
         // Row-level（可插拔）：Core 不关心具体 SQL 形态（IN/EXISTS/JOIN）。
         // 业务实现层（如 Sys）通过 ISqlSugarDataPermissionFilterProvider 注入具体过滤器（要求不使用 IN）。
-        foreach (var p in services.GetServices<ISqlSugarDataPermissionFilterProvider>())
+        var providers = services.GetServices<ISqlSugarDataPermissionFilterProvider>().ToArray();
+        if (dataPermission.Scope == DataScopeKind.Department && providers.Length == 0)
+        {
+            throw new InvalidOperationException(
+                "No ISqlSugarDataPermissionFilterProvider registered. Department scope is unsafe.");
+        }
+
+        foreach (var p in providers)
         {
             p.Apply(client, dataPermission);
         }

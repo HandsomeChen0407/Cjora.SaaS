@@ -6,6 +6,7 @@ namespace Cjora.SaaS.Sys.DataPermission.Entities;
 /// 用户数据域授权关系（按租户隔离）。
 /// </summary>
 [SugarTable("sys_user_data_scope")]
+[SugarIndex("idx_user_scope", nameof(TenantId), OrderByType.Asc, nameof(UserId), OrderByType.Asc, nameof(ScopeType), OrderByType.Asc, nameof(ScopeId), OrderByType.Asc)]
 public sealed class SysUserDataScope
 {
     [SugarColumn(IsPrimaryKey = true, IsIdentity = true)]

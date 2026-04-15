@@ -43,10 +43,18 @@ public sealed class HttpTenantProvider : ITenantProvider
     /// <inheritdoc />
     public string GetTenantId()
     {
+        // P0 Fail-Fast: 后台任务不得隐式回退 DefaultTenantId；必须通过 ITenantContextSetter 显式提供。
+        var ambient = AsyncLocalTenantContextSetter.GetAmbientTenantId();
+        if (!string.IsNullOrWhiteSpace(ambient))
+        {
+            return ambient!;
+        }
+
         var httpContext = _httpContextAccessor.HttpContext;
         if (httpContext is null)
         {
-            return _optionsAccessor.Value.DefaultTenantId;
+            throw new InvalidOperationException(
+                "TenantId cannot be resolved outside HttpContext. Background tasks MUST provide tenant context explicitly via ITenantContextSetter.Use(tenantId).");
         }
 
         if (TryGetCachedTenant(httpContext, out var cachedTenantId))
@@ -63,6 +71,12 @@ public sealed class HttpTenantProvider : ITenantProvider
     /// <inheritdoc />
     public string GetTenantResolutionSource()
     {
+        var ambient = AsyncLocalTenantContextSetter.GetAmbientTenantId();
+        if (!string.IsNullOrWhiteSpace(ambient))
+        {
+            return "AsyncLocal";
+        }
+
         var httpContext = _httpContextAccessor.HttpContext;
         if (httpContext is null)
         {

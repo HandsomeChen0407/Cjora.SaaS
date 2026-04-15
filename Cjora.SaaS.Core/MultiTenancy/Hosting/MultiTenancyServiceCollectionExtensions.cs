@@ -47,6 +47,9 @@ public static class MultiTenancyServiceCollectionExtensions
 
         services.AddScoped<ITenantIdentifierResolver, TenantIdentifierResolver>();
         services.AddScoped<ITenantProvider, HttpTenantProvider>();
+        // 后台任务租户上下文（AsyncLocal）：用于在无 HttpContext 时显式提供租户；否则应 Fail-Fast。
+        services.AddSingleton<ITenantContextSetter, AsyncLocalTenantContextSetter>();
+        services.AddSingleton<IBackgroundTenantExecutor, BackgroundTenantExecutor>();
         services.AddScoped<ITenantStorageRoutingProvider, ConfiguredTenantStorageRoutingProvider>();
 
         return services;

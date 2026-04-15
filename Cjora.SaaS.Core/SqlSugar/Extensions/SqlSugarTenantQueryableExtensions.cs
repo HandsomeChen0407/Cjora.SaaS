@@ -1,4 +1,6 @@
 using Cjora.SaaS.Core.DataPermission.Abstractions;
+using Cjora.SaaS.Core.Auth.Abstractions;
+using Cjora.SaaS.Core.Diagnostics;
 using Cjora.SaaS.Core.Repository.Abstractions;
 using SqlSugar;
 
@@ -23,6 +25,25 @@ public static class SqlSugarTenantQueryableExtensions
     public static ISugarQueryable<TEntity> ClearTenantFilters<TEntity>(this ISugarQueryable<TEntity> queryable)
         where TEntity : class, new()
     {
+        // P0 Hardening: 禁止无鉴权上下文清除租户过滤器。
+        throw new UnauthorizedAccessException(
+            "ClearTenantFilters is restricted. Use ClearTenantFilters(queryable, currentUser) and ensure currentUser.IsSuperAdmin.");
+    }
+
+    /// <summary>
+    /// 仅移除租户相关全局过滤器（<see cref="ITenantScopedEntity"/>），仅允许平台级超级管理员使用。
+    /// </summary>
+    public static ISugarQueryable<TEntity> ClearTenantFilters<TEntity>(
+        this ISugarQueryable<TEntity> queryable,
+        ICurrentUser currentUser)
+        where TEntity : class, new()
+    {
+        if (!currentUser.IsSuperAdmin)
+        {
+            throw new UnauthorizedAccessException("ClearTenantFilters is restricted.");
+        }
+
+        SecurityAuditEventSource.Log.ClearTenantFilters(currentUser.UserId, currentUser.TenantId);
         return queryable.ClearFilter<ITenantScopedEntity>();
     }
 

@@ -15,7 +15,16 @@ public static class SysSqlSugarQueryableExtensions
     public static ISugarQueryable<TEntity> SysClearTenantFilters<TEntity>(this ISugarQueryable<TEntity> queryable)
         where TEntity : class, new()
     {
-        return queryable.ClearTenantFilters();
+        throw new UnauthorizedAccessException(
+            "SysClearTenantFilters requires currentUser. Use SysClearTenantFilters(queryable, currentUser) and ensure currentUser.IsSuperAdmin.");
+    }
+
+    public static ISugarQueryable<TEntity> SysClearTenantFilters<TEntity>(
+        this ISugarQueryable<TEntity> queryable,
+        Cjora.SaaS.Core.Auth.Abstractions.ICurrentUser currentUser)
+        where TEntity : class, new()
+    {
+        return queryable.ClearTenantFilters(currentUser);
     }
 
     /// <inheritdoc cref="SqlSugarTenantQueryableExtensions.ClearDataPermissionFilters{TEntity}"/>

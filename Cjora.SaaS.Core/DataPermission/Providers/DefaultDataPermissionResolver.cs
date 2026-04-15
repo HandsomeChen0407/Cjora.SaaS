@@ -1,8 +1,10 @@
 using System.Globalization;
+using System.Security;
 using Cjora.SaaS.Core.Auth.Abstractions;
 using Cjora.SaaS.Core.DataPermission.Abstractions;
 using Cjora.SaaS.Core.DataPermission.Enums;
 using Cjora.SaaS.Core.DataPermission.Models;
+using Cjora.SaaS.Core.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -45,7 +47,15 @@ public sealed class DefaultDataPermissionResolver : IDataPermissionResolver
     private bool ResolveBypass()
     {
         var raw = _currentUser.FindClaim(_claimOptions.BypassRowLevelFiltersClaimType);
-        return string.Equals(raw, _claimOptions.BypassRowFiltersClaimValue, StringComparison.OrdinalIgnoreCase);
+        var bypass = string.Equals(raw, _claimOptions.BypassRowFiltersClaimValue, StringComparison.OrdinalIgnoreCase);
+        if (bypass)
+        {
+            // P2 审计：bypass 属于高危开关，必须记录。
+            SecurityAuditEventSource.Log.BypassRowLevelFilters(_currentUser.UserId, _currentUser.TenantId);
+            _logger.LogWarning("BypassRowLevelFilters enabled. UserId={UserId}, TenantId={TenantId}", _currentUser.UserId, _currentUser.TenantId);
+        }
+
+        return bypass;
     }
 
     private DataScopeKind ResolveScope(bool bypassRowLevelFilters)
@@ -58,7 +68,7 @@ public sealed class DefaultDataPermissionResolver : IDataPermissionResolver
         var raw = _currentUser.FindClaim(_claimOptions.DataScopeClaimType);
         if (string.IsNullOrWhiteSpace(raw))
         {
-            return _claimOptions.DefaultScope;
+            throw new SecurityException("Invalid data_scope claim");
         }
 
         raw = raw.Trim();
@@ -75,7 +85,7 @@ public sealed class DefaultDataPermissionResolver : IDataPermissionResolver
             return named;
         }
 
-        return _claimOptions.DefaultScope;
+        throw new SecurityException("Invalid data_scope claim");
     }
 
     // NOTE: DepartmentIdsClaimType 保留为兼容配置项，但默认解析器不再消费 dept_ids。

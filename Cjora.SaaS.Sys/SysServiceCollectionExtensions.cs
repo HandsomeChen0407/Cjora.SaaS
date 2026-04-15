@@ -46,6 +46,9 @@ public static class SysServiceCollectionExtensions
             services.Configure(configureDataPermissionClaims);
         }
 
+        services.AddOptions();
+        services.Configure<SysDepartmentOptions>(_ => { });
+
         services.ReplaceTenantStorageRoutingProvider<SysTenantTableStorageRoutingProvider>();
 
         // Sys 业务实现层提供行级数据权限过滤器（EXISTS/JOIN），Core 只负责调用。
