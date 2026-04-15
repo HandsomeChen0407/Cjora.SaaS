@@ -41,64 +41,35 @@ internal static class SqlSugarSaaSClientBuilder
         ITenantProvider tenantProvider,
         IDataPermissionContext dataPermission)
     {
+        // 租户：保持构建时绑定 ITenantProvider（与历史一致）。
         client.QueryFilter.AddTableFilter<ITenantScopedEntity>(
             entity => entity.TenantId == tenantProvider.GetTenantId(),
             QueryFilterProvider.FilterJoinPosition.Where);
 
-        // NEW: 临时关闭行级数据权限（租户过滤仍生效）
-        if (dataPermission.IsDisabled)
-        {
-            return;
-        }
-
-        if (dataPermission.BypassRowLevelFilters)
-        {
-            return;
-        }
-
-        switch (dataPermission.Scope)
-        {
-            case DataScopeKind.Department:
-                ApplyDepartmentFilter(client, dataPermission);
-                break;
-            case DataScopeKind.Self:
-                ApplySelfFilter(client, dataPermission);
-                break;
-            case DataScopeKind.All:
-            case DataScopeKind.Tenant:
-            default:
-                break;
-        }
-    }
-
-    private static void ApplyDepartmentFilter(ISqlSugarClient client, IDataPermissionContext dataPermission)
-    {
-        var ids = dataPermission.AccessibleDepartmentIds.ToArray();
-        if (ids.Length == 0)
-        {
-            client.QueryFilter.AddTableFilter<IDepartmentScopedEntity>(
-                _ => false,
-                QueryFilterProvider.FilterJoinPosition.Where);
-            return;
-        }
-
+        // RUNTIME: 行级权限必须在每次生成 SQL 时读取 IDataPermissionContext 属性；
+        // 禁止在 Build 阶段 if (IsDisabled)/switch(Scope) 决定是否注册过滤器，否则 using (scope.Disable()) 在客户端已创建后无效。
         client.QueryFilter.AddTableFilter<IDepartmentScopedEntity>(
-            entity => ids.Contains(entity.DepartmentId),
+            entity =>
+                dataPermission.IsDisabled
+                || dataPermission.BypassRowLevelFilters
+                || (
+                    dataPermission.Scope == DataScopeKind.Department
+                    && dataPermission.AccessibleDepartmentIds.Contains(entity.DepartmentId)
+                )
+                || dataPermission.Scope != DataScopeKind.Department,
             QueryFilterProvider.FilterJoinPosition.Where);
-    }
 
-    private static void ApplySelfFilter(ISqlSugarClient client, IDataPermissionContext dataPermission)
-    {
-        if (dataPermission.CurrentUserId <= 0)
-        {
-            client.QueryFilter.AddTableFilter<ICreatorOwnedEntity>(
-                _ => false,
-                QueryFilterProvider.FilterJoinPosition.Where);
-            return;
-        }
-
+        // Self：在表达式内保留 CurrentUserId>0，与历史「无效用户 Id 时整表不可见」一致，避免 CreatorUserId==0 行被误放行。
         client.QueryFilter.AddTableFilter<ICreatorOwnedEntity>(
-            entity => entity.CreatorUserId == dataPermission.CurrentUserId,
+            entity =>
+                dataPermission.IsDisabled
+                || dataPermission.BypassRowLevelFilters
+                || (
+                    dataPermission.Scope == DataScopeKind.Self
+                    && dataPermission.CurrentUserId > 0
+                    && entity.CreatorUserId == dataPermission.CurrentUserId
+                )
+                || dataPermission.Scope != DataScopeKind.Self,
             QueryFilterProvider.FilterJoinPosition.Where);
     }
 }

@@ -104,7 +104,11 @@ public sealed class AesDataEncryptor : IDataEncryptor
             plaintext = Encoding.UTF8.GetString(plain);
             return true;
         }
-        catch (Exception)
+        catch (CryptographicException)
+        {
+            return false;
+        }
+        catch (FormatException)
         {
             return false;
         }

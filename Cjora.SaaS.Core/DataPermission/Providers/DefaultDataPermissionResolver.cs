@@ -3,6 +3,7 @@ using Cjora.SaaS.Core.Auth.Abstractions;
 using Cjora.SaaS.Core.DataPermission.Abstractions;
 using Cjora.SaaS.Core.DataPermission.Enums;
 using Cjora.SaaS.Core.DataPermission.Models;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace Cjora.SaaS.Core.DataPermission.Providers;
@@ -15,16 +16,23 @@ namespace Cjora.SaaS.Core.DataPermission.Providers;
 /// </remarks>
 public sealed class DefaultDataPermissionResolver : IDataPermissionResolver
 {
+    private const int MaxDepartmentIdsForInClause = 1000;
+
     private readonly ICurrentUser _currentUser;
     private readonly DataPermissionClaimOptions _claimOptions;
+    private readonly ILogger<DefaultDataPermissionResolver> _logger;
 
     /// <summary>
     /// 初始化 <see cref="DefaultDataPermissionResolver"/>。
     /// </summary>
-    public DefaultDataPermissionResolver(ICurrentUser currentUser, IOptions<DataPermissionClaimOptions> claimOptions)
+    public DefaultDataPermissionResolver(
+        ICurrentUser currentUser,
+        IOptions<DataPermissionClaimOptions> claimOptions,
+        ILogger<DefaultDataPermissionResolver> logger)
     {
         _currentUser = currentUser;
         _claimOptions = claimOptions.Value;
+        _logger = logger;
     }
 
     /// <inheritdoc />
@@ -34,6 +42,19 @@ public sealed class DefaultDataPermissionResolver : IDataPermissionResolver
         var bypass = ResolveBypass();
         var scope = ResolveScope(bypass);
         var deptIds = ResolveDepartmentIds();
+
+        // IN 爆炸防护：部门 Id 过多时降级为 Self（比截断列表更安全，避免静默丢失授权部门）。
+        if (!bypass && scope == DataScopeKind.Department && deptIds.Count > MaxDepartmentIdsForInClause)
+        {
+            _logger.LogWarning(
+                "部门声明数量 {Count} 超过上限 {Max}，数据范围已降级为 Self（用户 {UserId}）。",
+                deptIds.Count,
+                MaxDepartmentIdsForInClause,
+                _currentUser.UserId);
+            return Task.FromResult(
+                new DataPermissionResult(DataScopeKind.Self, bypass, _currentUser.UserId, Array.Empty<long>()));
+        }
+
         return Task.FromResult(new DataPermissionResult(scope, bypass, _currentUser.UserId, deptIds));
     }
 
