@@ -41,6 +41,7 @@ public static class SqlSugarServiceCollectionExtensions
                 sp.GetRequiredService<IDataPermissionResolver>(),
                 sp.GetRequiredService<DataPermissionScopeState>()));
         services.TryAddScoped<ISqlSugarClientGuard, AsyncLocalSqlSugarClientGuard>();
+        services.TryAddSingleton<ISqlSugarClientFactory, DefaultSqlSugarClientFactory>();
         services.AddKeyedScoped<ISqlSugarClient>(
             SqlSugarKeyedServiceKeys.Catalog,
             static (sp, _) => SqlSugarCatalogClientFactory.Create(sp));

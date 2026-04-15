@@ -56,4 +56,12 @@ public sealed class TenantResolutionResult
     {
         return new TenantResolutionResult(defaultTenantId, "DefaultFallback", usedDefaultFallback: true);
     }
+
+    /// <summary>
+    /// 表示未能从请求中解析出租户标识（禁止默认回退时使用）。
+    /// </summary>
+    public static TenantResolutionResult FromUnresolved()
+    {
+        return new TenantResolutionResult(string.Empty, "Unresolved", usedDefaultFallback: false);
+    }
 }

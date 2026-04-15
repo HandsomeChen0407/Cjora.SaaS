@@ -6,15 +6,15 @@ namespace Cjora.SaaS.Core.DataPermission.Providers;
 /// <remarks><b>// NEW</b>：供 <see cref="DefaultDataPermissionContext"/> 与 <see cref="DefaultDataPermissionScope"/> 共用。</remarks>
 public sealed class DataPermissionScopeState
 {
-    private int _disableDepth;
+    private static readonly AsyncLocal<int> DisableDepth = new();
 
     /// <summary>为 <see langword="true"/> 时 SqlSugar 行级数据权限过滤器应短路（租户过滤除外）。</summary>
-    public bool IsDisabled => System.Threading.Volatile.Read(ref _disableDepth) > 0;
+    public bool IsDisabled => DisableDepth.Value > 0;
 
     /// <summary>增加禁用深度并返回释放时递减的句柄。</summary>
     internal IDisposable PushDisabled()
     {
-        System.Threading.Interlocked.Increment(ref _disableDepth);
+        DisableDepth.Value++;
         return new PopScope(this);
     }
 
@@ -32,7 +32,7 @@ public sealed class DataPermissionScopeState
                 return;
             }
 
-            System.Threading.Interlocked.Decrement(ref _owner._disableDepth);
+            DisableDepth.Value = Math.Max(0, DisableDepth.Value - 1);
         }
     }
 }

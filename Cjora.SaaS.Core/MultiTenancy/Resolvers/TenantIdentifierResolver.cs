@@ -6,7 +6,7 @@ using Cjora.SaaS.Core.MultiTenancy.Models;
 namespace Cjora.SaaS.Core.MultiTenancy.Resolvers;
 
 /// <summary>
-/// 默认租户解析：按固定顺序尝试 <b>请求头 → JWT 声明 → 子域名</b>，均未命中则回退 <see cref="TenantOptions.DefaultTenantId"/>。
+/// 默认租户解析：按固定顺序尝试 <b>请求头 → JWT 声明 → 子域名</b>，均未命中则返回未解析（禁止默认回退）。
 /// </summary>
 /// <remarks>
 /// 将原 Contributor + 组合解析器合并为单类，减少扩展点与类型数量；若需完全自定义解析，可实现 <see cref="ITenantIdentifierResolver"/> 并替换 DI 注册。
@@ -44,7 +44,7 @@ public sealed class TenantIdentifierResolver : ITenantIdentifierResolver
             return ValueTask.FromResult(TenantResolutionResult.FromContributor(fromSub, "Subdomain"));
         }
 
-        return ValueTask.FromResult(TenantResolutionResult.FromDefaultFallback(options.DefaultTenantId));
+        return ValueTask.FromResult(TenantResolutionResult.FromUnresolved());
     }
 
     private static bool TryResolveFromHeader(HttpContext httpContext, TenantOptions options, out string tenantId)

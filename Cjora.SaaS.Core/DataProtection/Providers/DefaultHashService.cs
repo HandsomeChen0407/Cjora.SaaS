@@ -14,12 +14,19 @@ namespace Cjora.SaaS.Core.DataProtection.Providers;
 /// </remarks>
 public sealed class DefaultHashService : IHashService
 {
-    private readonly IOptionsMonitor<DataProtectionOptions> _optionsMonitor;
+    private readonly string _salt;
 
     /// <summary>初始化 <see cref="DefaultHashService"/>。</summary>
-    public DefaultHashService(IOptionsMonitor<DataProtectionOptions> optionsMonitor)
+    public DefaultHashService(IOptions<DataProtectionOptions> optionsAccessor)
     {
-        _optionsMonitor = optionsMonitor;
+        var options = optionsAccessor.Value;
+        if (options.EnableHash && string.IsNullOrWhiteSpace(options.HashSalt))
+        {
+            throw new InvalidOperationException($"{nameof(DataProtectionOptions)}.{nameof(DataProtectionOptions.HashSalt)} 必须配置且不可为空白（EnableHash=true）。");
+        }
+
+        // 启动后固定（禁止动态变更）：只读取一次并缓存为只读字段。
+        _salt = options.HashSalt ?? string.Empty;
     }
 
     /// <inheritdoc />
@@ -32,8 +39,7 @@ public sealed class DefaultHashService : IHashService
         }
 
         // COMPAT: HashSalt 为空时与历史字节序列一致
-        var salt = _optionsMonitor.CurrentValue.HashSalt ?? string.Empty;
-        var bytes = Encoding.UTF8.GetBytes(normalized + salt);
+        var bytes = Encoding.UTF8.GetBytes(normalized + _salt);
         var hash = SHA256.HashData(bytes);
         return Convert.ToHexString(hash).ToLowerInvariant();
     }

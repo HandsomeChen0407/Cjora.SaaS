@@ -43,7 +43,7 @@ public sealed class HttpTenantProvider : ITenantProvider
     /// <inheritdoc />
     public string GetTenantId()
     {
-        // P0 Fail-Fast: 后台任务不得隐式回退 DefaultTenantId；必须通过 ITenantContextSetter 显式提供。
+        // P0 Fail-Fast: 禁止默认租户 / 静默回退；后台任务必须通过 ITenantContextSetter 显式提供租户。
         var ambient = AsyncLocalTenantContextSetter.GetAmbientTenantId();
         if (!string.IsNullOrWhiteSpace(ambient))
         {
@@ -53,11 +53,6 @@ public sealed class HttpTenantProvider : ITenantProvider
         var httpContext = _httpContextAccessor.HttpContext;
         if (httpContext is null)
         {
-            if (_optionsAccessor.Value.AllowDefaultTenantFallbackOutsideHttpContext)
-            {
-                return _optionsAccessor.Value.DefaultTenantId;
-            }
-
             throw new InvalidOperationException(
                 "TenantId cannot be resolved outside HttpContext. Background tasks MUST provide tenant context explicitly via ITenantContextSetter.Use(tenantId).");
         }
@@ -69,8 +64,12 @@ public sealed class HttpTenantProvider : ITenantProvider
 
         // 测试或未挂中间件：与中间件逻辑一致再走一遍解析链。
         var resolved = _tenantIdentifierResolver.ResolveAsync(httpContext).ConfigureAwait(false).GetAwaiter().GetResult();
-        var tenantId = string.IsNullOrWhiteSpace(resolved.TenantId) ? _optionsAccessor.Value.DefaultTenantId : resolved.TenantId;
-        return tenantId;
+        if (string.IsNullOrWhiteSpace(resolved.TenantId))
+        {
+            throw new InvalidOperationException("TenantId cannot be resolved from the current HttpContext. Default tenant fallback is forbidden.");
+        }
+
+        return resolved.TenantId;
     }
 
     /// <inheritdoc />

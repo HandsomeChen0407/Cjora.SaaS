@@ -58,7 +58,12 @@ public sealed class TenantMiddleware
 
         var resolutionResult = await tenantIdentifierResolver.ResolveAsync(context, context.RequestAborted).ConfigureAwait(false);
 
-        var tenantId = string.IsNullOrWhiteSpace(resolutionResult.TenantId) ? options.DefaultTenantId : resolutionResult.TenantId;
+        if (string.IsNullOrWhiteSpace(resolutionResult.TenantId))
+        {
+            throw new InvalidOperationException("TenantId cannot be resolved for this request. Default tenant fallback is forbidden.");
+        }
+
+        var tenantId = resolutionResult.TenantId;
 
         logger.LogInformation(
             "Tenant resolved: TenantId={TenantId}, Source={Source}, UsedDefaultFallback={UsedDefaultFallback}",
