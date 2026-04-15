@@ -1,5 +1,6 @@
 using Cjora.SaaS.Core.Repository.Abstractions;
 using Cjora.SaaS.Sys.Entities;
+using SqlSugar;
 
 namespace Cjora.SaaS.Sys.Permissions;
 
@@ -25,14 +26,12 @@ public sealed class EffectivePermissionResolver : IEffectivePermissionResolver
     /// <inheritdoc />
     public async Task<IReadOnlySet<string>> GetEffectivePermissionCodesAsync(long userId, CancellationToken cancellationToken = default)
     {
-        var links = await _userRoles.GetListAsync(ur => ur.UserId == userId, cancellationToken);
-        if (links.Count == 0)
-        {
-            return new HashSet<string>(StringComparer.Ordinal);
-        }
-
-        var roleIds = links.Select(static l => l.RoleId).Distinct().ToArray();
-        var roles = await _roles.GetListAsync(r => roleIds.Contains(r.Id), cancellationToken);
+        // P1 Hardening：避免隐性 IN（Contains）；改为 EXISTS（子查询）。
+        var roles = await _roles.GetListAsync(
+            r => SqlFunc.Subqueryable<SysUserRole>()
+                .Where(ur => ur.UserId == userId && ur.RoleId == r.Id)
+                .Any(),
+            cancellationToken);
 
         var set = new HashSet<string>(StringComparer.Ordinal);
         foreach (var role in roles)

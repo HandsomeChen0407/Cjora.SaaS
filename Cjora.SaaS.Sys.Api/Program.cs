@@ -4,6 +4,7 @@ using Cjora.SaaS.Sys;
 using Cjora.SaaS.Sys.DataPermission.Entities;
 using Cjora.SaaS.Sys.Entities;
 using Cjora.SaaS.Sys.Repositories;
+using Cjora.SaaS.Sys.SqlSugar;
 using Microsoft.Extensions.DependencyInjection;
 using SqlSugar;
 
@@ -50,6 +51,9 @@ builder.Services.AddCjoraSaaSSys();
 
 var app = builder.Build();
 
+// 发布封板：系统级自检守门器（不通过直接启动失败）
+app.Services.ValidateSaaSOrThrow();
+
 using (var scope = app.Services.CreateScope())
 {
     var catalogDb = scope.ServiceProvider.GetRequiredKeyedService<ISqlSugarClient>(SqlSugarKeyedServiceKeys.Catalog);
@@ -67,6 +71,9 @@ using (var scope = app.Services.CreateScope())
         typeof(SysPermission),
         typeof(SysDictType),
         typeof(SysDictItem));
+
+    // P0：缺索引直接启动失败（Fail-Fast）
+    DatabaseSchemaValidator.ValidateIndexes(db);
 
     var tenants = scope.ServiceProvider.GetRequiredService<ISysTenantRepository>();
     if (await tenants.GetByIdAsync("default", CancellationToken.None).ConfigureAwait(false) is null)

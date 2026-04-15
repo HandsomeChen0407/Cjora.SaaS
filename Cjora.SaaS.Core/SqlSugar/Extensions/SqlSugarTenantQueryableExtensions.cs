@@ -48,20 +48,36 @@ public static class SqlSugarTenantQueryableExtensions
     }
 
     /// <summary>
-    /// 移除部门/本人数据权限过滤器，保留租户过滤器。
+    /// 移除部门/本人数据权限过滤器，保留租户过滤器（框架内部：仅允许超级管理员）。
     /// </summary>
-    public static ISugarQueryable<TEntity> ClearDataPermissionFilters<TEntity>(this ISugarQueryable<TEntity> queryable)
+    internal static ISugarQueryable<TEntity> ClearDataPermissionFiltersInternal<TEntity>(
+        this ISugarQueryable<TEntity> queryable,
+        ICurrentUser currentUser)
         where TEntity : class, new()
     {
+        if (!currentUser.IsSuperAdmin)
+        {
+            throw new UnauthorizedAccessException("Forbidden to clear SaaS filters.");
+        }
+
+        SecurityAuditEventSource.Log.ClearTenantFilters(currentUser.UserId, currentUser.TenantId);
         return queryable.ClearFilter<IDepartmentScopedEntity, ICreatorOwnedEntity>();
     }
 
     /// <summary>
-    /// 移除本库注册的 SaaS 相关全部全局过滤器（租户 + 数据权限接口）。
+    /// 移除本库注册的 SaaS 相关全部全局过滤器（租户 + 数据权限接口）（框架内部：仅允许超级管理员）。
     /// </summary>
-    public static ISugarQueryable<TEntity> ClearAllSaaSFilters<TEntity>(this ISugarQueryable<TEntity> queryable)
+    internal static ISugarQueryable<TEntity> ClearAllSaaSFiltersInternal<TEntity>(
+        this ISugarQueryable<TEntity> queryable,
+        ICurrentUser currentUser)
         where TEntity : class, new()
     {
+        if (!currentUser.IsSuperAdmin)
+        {
+            throw new UnauthorizedAccessException("Forbidden to clear SaaS filters.");
+        }
+
+        SecurityAuditEventSource.Log.ClearTenantFilters(currentUser.UserId, currentUser.TenantId);
         return queryable.ClearFilter<ITenantScopedEntity, IDepartmentScopedEntity, ICreatorOwnedEntity>();
     }
 }

@@ -31,13 +31,15 @@ public static class SysSqlSugarQueryableExtensions
     public static ISugarQueryable<TEntity> SysClearDataPermissionFilters<TEntity>(this ISugarQueryable<TEntity> queryable)
         where TEntity : class, new()
     {
-        return queryable.ClearDataPermissionFilters();
+        throw new UnauthorizedAccessException(
+            "SysClearDataPermissionFilters is restricted. Use framework internal entry with super admin only.");
     }
 
     /// <inheritdoc cref="SqlSugarTenantQueryableExtensions.ClearAllSaaSFilters{TEntity}"/>
     public static ISugarQueryable<TEntity> SysClearAllSaaSFilters<TEntity>(this ISugarQueryable<TEntity> queryable)
         where TEntity : class, new()
     {
-        return queryable.ClearAllSaaSFilters();
+        throw new UnauthorizedAccessException(
+            "SysClearAllSaaSFilters is restricted. Use SysClearAllSaaSFiltersInternal via framework services (super admin only).");
     }
 }

@@ -42,6 +42,8 @@ public static class SqlSugarTenantClientFactory
               ?? throw new InvalidOperationException(
                   $"租户 '{tenantId}' 使用独立物理库，但 {nameof(TenantStorageRoutingContext.DedicatedConnectionString)} 为空。");
 
-        return SqlSugarSaaSClientBuilder.Build(services, connectionString, options);
+        var client = SqlSugarSaaSClientBuilder.Build(services, connectionString, options);
+        var guard = services.GetService<Cjora.SaaS.Core.SqlSugar.Abstractions.ISqlSugarClientGuard>();
+        return guard is null ? client : GuardedDispatchProxy<ISqlSugarClient>.Create(client, guard);
     }
 }

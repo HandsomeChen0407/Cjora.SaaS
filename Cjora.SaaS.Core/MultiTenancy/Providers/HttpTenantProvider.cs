@@ -53,6 +53,11 @@ public sealed class HttpTenantProvider : ITenantProvider
         var httpContext = _httpContextAccessor.HttpContext;
         if (httpContext is null)
         {
+            if (_optionsAccessor.Value.AllowDefaultTenantFallbackOutsideHttpContext)
+            {
+                return _optionsAccessor.Value.DefaultTenantId;
+            }
+
             throw new InvalidOperationException(
                 "TenantId cannot be resolved outside HttpContext. Background tasks MUST provide tenant context explicitly via ITenantContextSetter.Use(tenantId).");
         }

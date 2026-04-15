@@ -23,6 +23,8 @@ public static class SqlSugarCatalogClientFactory
                 $"{nameof(SqlSugarSaaSOptions)}.{nameof(SqlSugarSaaSOptions.MasterConnectionString)} 未配置，无法创建目录库 ISqlSugarClient。");
         }
 
-        return SqlSugarSaaSClientBuilder.Build(services, options.MasterConnectionString, options);
+        var client = SqlSugarSaaSClientBuilder.Build(services, options.MasterConnectionString, options);
+        var guard = services.GetService<Cjora.SaaS.Core.SqlSugar.Abstractions.ISqlSugarClientGuard>();
+        return guard is null ? client : GuardedDispatchProxy<ISqlSugarClient>.Create(client, guard);
     }
 }

@@ -31,6 +31,14 @@ public class TenantOptions
     public bool InjectDefaultTenantHeaderWhenMissing { get; set; } = true;
 
     /// <summary>
+    /// 是否允许在无 <c>HttpContext</c> 且无显式租户上下文（<see cref="Abstractions.ITenantContextSetter"/>）时回退默认租户。
+    /// </summary>
+    /// <remarks>
+    /// 生产默认应为 <see langword="false"/>（Fail-Fast 防串租）；如确需兼容旧行为，必须显式开启。
+    /// </remarks>
+    public bool AllowDefaultTenantFallbackOutsideHttpContext { get; set; } = false;
+
+    /// <summary>
     /// 是否启用基于请求头的租户解析。
     /// </summary>
     public bool EnableHeaderTenantResolution { get; set; } = true;
