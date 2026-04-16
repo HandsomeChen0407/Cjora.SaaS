@@ -1,3 +1,4 @@
+using Cjora.SaaS.Core.Repository.Entities;
 using SqlSugar;
 
 namespace Cjora.SaaS.Sys.Entities;
@@ -7,14 +8,15 @@ namespace Cjora.SaaS.Sys.Entities;
 /// 企业级数据权限引擎启用后，部门范围不再通过 JWT 携带列表，而由 <c>sys_user_data_scope</c> + 闭包表在查询时实时判定。
 /// </summary>
 /// <remarks>
-/// <para>公共字段见 <see cref="SysLongIdTenantAuditedEntity"/>。</para>
+/// <para>公共字段见 <see cref="TenantCreatorEntityBase"/>。</para>
 /// <para>
 /// 本实体仅实现 <see cref="Cjora.SaaS.Core.Repository.Abstractions.ITenantScopedEntity"/>（通过基类），不实现 <see cref="Cjora.SaaS.Core.DataPermission.Abstractions.IDepartmentScopedEntity"/>：
 /// 组织主数据通常按租户全员可见（或另做管理端权限），避免「按部门过滤部门表」导致无法维护整棵树。
 /// </para>
 /// </remarks>
 [SugarTable("sys_department")]
-public sealed class SysDepartment : SysLongIdTenantAuditedEntity
+[SugarIndex("idx_sys_department_tenant", nameof(TenantId), OrderByType.Asc)]
+public sealed class SysDepartment : TenantCreatorEntityBase
 {
     /// <summary>
     /// 父部门 Id；根节点为 <see langword="null"/>。

@@ -1,16 +1,24 @@
+using Cjora.SaaS.Core.Repository.Entities;
 using SqlSugar;
 
 namespace Cjora.SaaS.Sys.Entities;
 
 /// <summary>
-/// 租户主数据；<see cref="SysStringIdAuditedEntity.Id"/> 与业务表 <c>tenant_id</c>（<see cref="Cjora.SaaS.Core.Repository.ITenantScopedEntity.TenantId"/>）一致。
+/// 租户主数据。数据库主键使用 long，自然租户标识统一使用 <see cref="TenantCode"/>。
 /// </summary>
 /// <remarks>
 /// 不实现 <see cref="Cjora.SaaS.Core.Repository.ITenantScopedEntity"/>。独立物理库场景下本表通常仅在平台主库存在。
 /// </remarks>
 [SugarTable("sys_tenant")]
-public sealed class SysTenant : SysStringIdAuditedEntity
+[SugarIndex("uk_sys_tenant_code", nameof(TenantCode), OrderByType.Asc, IsUnique = true)]
+public sealed class SysTenant : SoftDeleteAuditedEntityBase
 {
+    /// <summary>
+    /// 对外与跨服务使用的稳定租户编码。
+    /// </summary>
+    [SugarColumn(ColumnName = "tenant_code", Length = 64, IsNullable = false)]
+    public string TenantCode { get; set; } = "";
+
     /// <summary>
     /// 租户显示名称。
     /// </summary>

@@ -181,7 +181,8 @@ internal sealed class UserAppService : IUserAppService
                 TenantId = tenantId,
                 UserId = userId,
                 ScopeType = ds.ScopeType,
-                ScopeId = ds.ScopeId
+                ScopeId = ds.ScopeId,
+                CreatedAtUtc = DateTime.UtcNow
             }).ExecuteCommandAsync();
         }
     }

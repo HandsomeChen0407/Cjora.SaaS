@@ -1,3 +1,4 @@
+using Cjora.SaaS.Core.Repository.Entities;
 using SqlSugar;
 
 namespace Cjora.SaaS.Sys.Entities;
@@ -7,8 +8,9 @@ namespace Cjora.SaaS.Sys.Entities;
 /// 用户分配角色时应自动同步到 <c>sys_user_data_scope</c>，供 Core EXISTS 过滤器消费。
 /// </summary>
 [SugarTable("sys_role_data_scope")]
+[SugarIndex("idx_sys_role_data_scope_tenant", nameof(TenantId), OrderByType.Asc)]
 [SugarIndex("uk_tenant_role_scope", nameof(TenantId), OrderByType.Asc, nameof(RoleId), OrderByType.Asc, nameof(ScopeType), OrderByType.Asc, nameof(ScopeId), OrderByType.Asc, IsUnique = true)]
-public sealed class SysRoleDataScope : SysLongIdTenantAuditedEntity
+public sealed class SysRoleDataScope : TenantCreatorEntityBase
 {
     /// <summary>角色 Id。</summary>
     [SugarColumn(ColumnName = "role_id", IsNullable = false)]

@@ -129,12 +129,12 @@ using (var scope = app.Services.CreateScope())
     DatabaseSchemaValidator.ValidateIndexes(db);
 
     var tenants = scope.ServiceProvider.GetRequiredService<ISysTenantRepository>();
-    if (await tenants.GetByIdAsync("default", CancellationToken.None).ConfigureAwait(false) is null)
+    if (await tenants.GetByTenantCodeAsync("default", CancellationToken.None).ConfigureAwait(false) is null)
     {
         await tenants.InsertAsync(
                 new SysTenant
                 {
-                    Id = "default",
+                    TenantCode = "default",
                     Name = "默认租户",
                     IsActive = true,
                     CreatedAtUtc = DateTime.UtcNow

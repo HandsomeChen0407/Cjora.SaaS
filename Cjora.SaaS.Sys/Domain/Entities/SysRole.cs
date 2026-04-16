@@ -1,3 +1,4 @@
+using Cjora.SaaS.Core.Repository.Entities;
 using SqlSugar;
 
 namespace Cjora.SaaS.Sys.Entities;
@@ -6,8 +7,9 @@ namespace Cjora.SaaS.Sys.Entities;
 /// 租户内角色；权限通过 <see cref="SysRolePermission"/> 中间表关联，数据范围通过 <see cref="SysRoleDataScope"/> 配置。
 /// </summary>
 [SugarTable("sys_role")]
+[SugarIndex("idx_sys_role_tenant", nameof(TenantId), OrderByType.Asc)]
 [SugarIndex("uk_tenant_code", nameof(TenantId), OrderByType.Asc, nameof(Code), OrderByType.Asc, IsUnique = true)]
-public sealed class SysRole : SysLongIdTenantAuditedEntity
+public sealed class SysRole : TenantCreatorEntityBase
 {
     /// <summary>租户内角色编码（如 admin），租户内唯一。</summary>
     [SugarColumn(ColumnName = "code", Length = 64, IsNullable = false)]

@@ -1,3 +1,4 @@
+using Cjora.SaaS.Core.Repository.Entities;
 using SqlSugar;
 
 namespace Cjora.SaaS.Sys.DataPermission.Entities;
@@ -6,15 +7,10 @@ namespace Cjora.SaaS.Sys.DataPermission.Entities;
 /// 用户数据域授权关系（按租户隔离）。
 /// </summary>
 [SugarTable("sys_user_data_scope")]
+[SugarIndex("idx_sys_user_data_scope_tenant", nameof(TenantId), OrderByType.Asc)]
 [SugarIndex("idx_user_scope", nameof(TenantId), OrderByType.Asc, nameof(UserId), OrderByType.Asc, nameof(ScopeType), OrderByType.Asc, nameof(ScopeId), OrderByType.Asc)]
-public sealed class SysUserDataScope
+public sealed class SysUserDataScope : TenantEntityBase
 {
-    [SugarColumn(IsPrimaryKey = true, IsIdentity = true)]
-    public long Id { get; set; }
-
-    [SugarColumn(ColumnName = "tenant_id", Length = 64, IsNullable = false)]
-    public string TenantId { get; set; } = "";
-
     [SugarColumn(ColumnName = "user_id", IsNullable = false)]
     public long UserId { get; set; }
 

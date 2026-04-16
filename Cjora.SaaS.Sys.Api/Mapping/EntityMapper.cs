@@ -13,6 +13,7 @@ internal static class EntityMapper
         new()
         {
             Id = t.Id,
+            TenantCode = t.TenantCode,
             Name = t.Name,
             IsActive = t.IsActive,
             DedicatedDatabaseConnectionString = t.DedicatedDatabaseConnectionString,

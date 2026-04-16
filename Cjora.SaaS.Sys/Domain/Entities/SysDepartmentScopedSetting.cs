@@ -1,3 +1,4 @@
+using Cjora.SaaS.Core.Repository.Entities;
 using SqlSugar;
 
 namespace Cjora.SaaS.Sys.Entities;
@@ -9,7 +10,9 @@ namespace Cjora.SaaS.Sys.Entities;
 /// 典型用途：部门级参数、开关；与 <see cref="SysDepartment"/> 主数据区分——本表行受数据权限过滤器约束。
 /// </remarks>
 [SugarTable("sys_department_scoped_setting")]
-public sealed class SysDepartmentScopedSetting : SysLongIdDepartmentOwnedAuditedEntity
+[SugarIndex("idx_sys_department_scoped_setting_tenant", nameof(TenantId), OrderByType.Asc)]
+[SugarIndex("idx_tenant_dept", nameof(TenantId), OrderByType.Asc, nameof(DepartmentId), OrderByType.Asc)]
+public sealed class SysDepartmentScopedSetting : TenantDepartmentEntityBase
 {
     /// <summary>配置键（租户+部门内唯一性由业务或唯一索引保证）。</summary>
     [SugarColumn(ColumnName = "config_key", Length = 256, IsNullable = false)]

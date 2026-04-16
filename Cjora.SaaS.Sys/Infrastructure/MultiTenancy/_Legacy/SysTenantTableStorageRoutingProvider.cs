@@ -34,7 +34,7 @@ public sealed class SysTenantTableStorageRoutingProvider : ITenantStorageRouting
                 catalogOrShardKey: null);
         }
 
-        var row = await _tenants.GetByIdAsync(normalizedTenantId, cancellationToken).ConfigureAwait(false);
+        var row = await _tenants.GetByTenantCodeAsync(normalizedTenantId, cancellationToken).ConfigureAwait(false);
         if (row is null)
         {
             return new TenantStorageRoutingContext(

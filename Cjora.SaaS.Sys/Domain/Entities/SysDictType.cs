@@ -1,3 +1,4 @@
+using Cjora.SaaS.Core.Repository.Entities;
 using SqlSugar;
 
 namespace Cjora.SaaS.Sys.Entities;
@@ -6,8 +7,9 @@ namespace Cjora.SaaS.Sys.Entities;
 /// 租户内字典类型（如 USER_STATUS、DATA_SCOPE）。
 /// </summary>
 [SugarTable("sys_dict_type")]
+[SugarIndex("idx_sys_dict_type_tenant", nameof(TenantId), OrderByType.Asc)]
 [SugarIndex("uk_tenant_dict_code", nameof(TenantId), OrderByType.Asc, nameof(Code), OrderByType.Asc, IsUnique = true)]
-public sealed class SysDictType : SysLongIdTenantAuditedEntity
+public sealed class SysDictType : TenantCreatorEntityBase
 {
     /// <summary>字典名称。</summary>
     [SugarColumn(ColumnName = "name", Length = 256, IsNullable = false)]

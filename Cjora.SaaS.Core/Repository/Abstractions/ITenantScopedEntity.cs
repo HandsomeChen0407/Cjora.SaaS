@@ -1,7 +1,7 @@
 namespace Cjora.SaaS.Core.Repository.Abstractions;
 
 /// <summary>
-/// 表示实体按租户隔离存储：仓储实现会在「查询/更新/删除」时强制带上当前 <c>TenantId</c>，在「新增」时自动写入当前租户。
+/// 表示实体按租户隔离存储：仓储实现会在「查询/更新/删除」时强制带上当前 <c>TenantId</c>，在「新增」时自动写入当前租户标识。
 /// </summary>
 /// <remarks>
 /// 实现原理（为何单独接口而不是基类）：
@@ -14,7 +14,7 @@ namespace Cjora.SaaS.Core.Repository.Abstractions;
 public interface ITenantScopedEntity
 {
     /// <summary>
-    /// 租户标识，应与当前请求（或作业上下文）中 <see cref="MultiTenancy.Abstractions.ITenantProvider.GetTenantId"/> 一致。
+    /// 租户标识。值语义上为租户编码，应与当前请求（或作业上下文）中 <see cref="MultiTenancy.Abstractions.ITenantProvider.GetTenantId"/> 返回值一致。
     /// </summary>
     string TenantId { get; set; }
 }

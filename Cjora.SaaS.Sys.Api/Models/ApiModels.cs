@@ -4,7 +4,8 @@ namespace Cjora.SaaS.Sys.Api.Models;
 
 public sealed class SysTenantDto
 {
-    public string Id { get; init; } = "";
+    public long Id { get; init; }
+    public string TenantCode { get; init; } = "";
     public string Name { get; init; } = "";
     public bool IsActive { get; init; }
     public string? DedicatedDatabaseConnectionString { get; init; }
@@ -14,7 +15,7 @@ public sealed class SysTenantDto
 
 public sealed class SysTenantCreateRequest
 {
-    public string Id { get; init; } = "";
+    public string TenantCode { get; init; } = "";
     public string Name { get; init; } = "";
     public bool IsActive { get; init; } = true;
     public string? DedicatedDatabaseConnectionString { get; init; }

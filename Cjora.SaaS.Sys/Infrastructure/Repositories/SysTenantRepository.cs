@@ -22,15 +22,28 @@ public sealed class SysTenantRepository : ISysTenantRepository
     }
 
     /// <inheritdoc />
-    public async Task<SysTenant?> GetByIdAsync(string tenantId, CancellationToken cancellationToken = default)
+    public async Task<SysTenant?> GetByIdAsync(long id, CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(tenantId))
+        if (id <= 0)
         {
             return null;
         }
 
         return await _databaseClient.Queryable<SysTenant>()
-            .Where(t => t.Id == tenantId)
+            .Where(t => t.Id == id)
+            .FirstAsync(cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task<SysTenant?> GetByTenantCodeAsync(string tenantCode, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(tenantCode))
+        {
+            return null;
+        }
+
+        return await _databaseClient.Queryable<SysTenant>()
+            .Where(t => t.TenantCode == tenantCode.Trim())
             .FirstAsync(cancellationToken);
     }
 

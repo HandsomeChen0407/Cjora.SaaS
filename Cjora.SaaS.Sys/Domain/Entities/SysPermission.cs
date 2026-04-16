@@ -1,3 +1,4 @@
+using Cjora.SaaS.Core.Repository.Entities;
 using SqlSugar;
 
 namespace Cjora.SaaS.Sys.Entities;
@@ -6,8 +7,9 @@ namespace Cjora.SaaS.Sys.Entities;
 /// 租户内权限节点：菜单（路由）与按钮（权限码）统一建模，用于构建权限树。
 /// </summary>
 [SugarTable("sys_permission")]
+[SugarIndex("idx_sys_permission_tenant", nameof(TenantId), OrderByType.Asc)]
 [SugarIndex("uk_tenant_permcode", nameof(TenantId), OrderByType.Asc, nameof(PermCode), OrderByType.Asc, IsUnique = true)]
-public sealed class SysPermission : SysLongIdTenantAuditedEntity
+public sealed class SysPermission : TenantCreatorEntityBase
 {
     /// <summary>父节点 Id；根节点为 <see langword="null"/>。</summary>
     [SugarColumn(ColumnName = "parent_id", IsNullable = true)]

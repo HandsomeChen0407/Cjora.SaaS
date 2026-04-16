@@ -27,22 +27,22 @@ public sealed class TenantsController : ControllerBase
         return Ok(Result<IReadOnlyList<SysTenantDto>>.Ok(list.Select(static t => t.ToDto()).ToArray()));
     }
 
-    [HttpGet("{id}")]
-    public async Task<ActionResult<Result<SysTenantDto>>> GetById(string id, CancellationToken cancellationToken)
+    [HttpGet("{tenantCode}")]
+    public async Task<ActionResult<Result<SysTenantDto>>> GetByTenantCode(string tenantCode, CancellationToken cancellationToken)
     {
-        var t = await _tenants.GetByIdAsync(id, cancellationToken);
+        var t = await _tenants.GetByTenantCodeAsync(tenantCode, cancellationToken);
         return t is null ? NotFound(Result<SysTenantDto>.Fail("NotFound")) : Ok(Result<SysTenantDto>.Ok(t.ToDto()));
     }
 
     [HttpPost]
     public async Task<ActionResult<Result<SysTenantDto>>> Create([FromBody] SysTenantCreateRequest request, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(request.Id) || string.IsNullOrWhiteSpace(request.Name))
-            return BadRequest(Result<SysTenantDto>.Fail("Id 与 Name 必填。"));
+        if (string.IsNullOrWhiteSpace(request.TenantCode) || string.IsNullOrWhiteSpace(request.Name))
+            return BadRequest(Result<SysTenantDto>.Fail("TenantCode 与 Name 必填。"));
 
         var entity = new SysTenant
         {
-            Id = request.Id.Trim(),
+            TenantCode = request.TenantCode.Trim(),
             Name = request.Name.Trim(),
             IsActive = request.IsActive,
             DedicatedDatabaseConnectionString = string.IsNullOrWhiteSpace(request.DedicatedDatabaseConnectionString)
@@ -51,13 +51,16 @@ public sealed class TenantsController : ControllerBase
         };
 
         await _tenants.InsertAsync(entity, cancellationToken);
-        return CreatedAtAction(nameof(GetById), new { id = entity.Id }, Result<SysTenantDto>.Ok(entity.ToDto()));
+        return CreatedAtAction(
+            nameof(GetByTenantCode),
+            new { tenantCode = entity.TenantCode },
+            Result<SysTenantDto>.Ok(entity.ToDto()));
     }
 
-    [HttpPut("{id}")]
-    public async Task<ActionResult<Result<SysTenantDto>>> Update(string id, [FromBody] SysTenantUpdateRequest request, CancellationToken cancellationToken)
+    [HttpPut("{tenantCode}")]
+    public async Task<ActionResult<Result<SysTenantDto>>> Update(string tenantCode, [FromBody] SysTenantUpdateRequest request, CancellationToken cancellationToken)
     {
-        var t = await _tenants.GetByIdAsync(id, cancellationToken);
+        var t = await _tenants.GetByTenantCodeAsync(tenantCode, cancellationToken);
         if (t is null) return NotFound(Result<SysTenantDto>.Fail("NotFound"));
 
         t.Name = string.IsNullOrWhiteSpace(request.Name) ? t.Name : request.Name.Trim();

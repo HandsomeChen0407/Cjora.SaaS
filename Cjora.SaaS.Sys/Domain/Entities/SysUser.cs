@@ -1,3 +1,4 @@
+using Cjora.SaaS.Core.Repository.Entities;
 using SqlSugar;
 
 namespace Cjora.SaaS.Sys.Entities;
@@ -6,8 +7,9 @@ namespace Cjora.SaaS.Sys.Entities;
 /// 租户内用户（IAM 档案）；登录主体若在统一认证侧，可通过 <see cref="ExternalSubjectId"/> 对齐。
 /// </summary>
 [SugarTable("sys_user")]
+[SugarIndex("idx_sys_user_tenant", nameof(TenantId), OrderByType.Asc)]
 [SugarIndex("uk_tenant_login", nameof(TenantId), OrderByType.Asc, nameof(LoginName), OrderByType.Asc, IsUnique = true)]
-public sealed class SysUser : SysLongIdTenantAuditedEntity
+public sealed class SysUser : TenantCreatorEntityBase
 {
     /// <summary>租户内登录名，租户内唯一。</summary>
     [SugarColumn(ColumnName = "login_name", Length = 128, IsNullable = false)]

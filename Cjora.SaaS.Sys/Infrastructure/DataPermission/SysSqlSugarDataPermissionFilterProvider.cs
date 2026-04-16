@@ -28,6 +28,8 @@ public sealed class SysSqlSugarDataPermissionFilterProvider : ISqlSugarDataPermi
                             && p.ScopeType == "Department"
                             && SqlFunc.Subqueryable<SysDepartmentClosure>()
                                 .Where(c =>
+                                    c.TenantId == entity.TenantId
+                                    &&
                                     c.AncestorId == p.ScopeId
                                     && c.DescendantId == entity.DepartmentId)
                                 .Any())

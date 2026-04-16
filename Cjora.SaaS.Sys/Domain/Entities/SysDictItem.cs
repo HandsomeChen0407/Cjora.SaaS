@@ -1,3 +1,4 @@
+using Cjora.SaaS.Core.Repository.Entities;
 using SqlSugar;
 
 namespace Cjora.SaaS.Sys.Entities;
@@ -6,7 +7,8 @@ namespace Cjora.SaaS.Sys.Entities;
 /// 字典项：隶属于 <see cref="SysDictType"/>。
 /// </summary>
 [SugarTable("sys_dict_item")]
-public sealed class SysDictItem : SysLongIdTenantAuditedEntity
+[SugarIndex("idx_sys_dict_item_tenant", nameof(TenantId), OrderByType.Asc)]
+public sealed class SysDictItem : TenantCreatorEntityBase
 {
     /// <summary>所属字典类型 Id。</summary>
     [SugarColumn(ColumnName = "type_id", IsNullable = false)]

@@ -136,7 +136,12 @@ internal sealed class DepartmentAppService : IDepartmentAppService
     /// </summary>
     private async Task RebuildClosureForNodeAsync(long nodeId, long? parentId)
     {
-        await _db.Insertable(new SysDepartmentClosure { AncestorId = nodeId, DescendantId = nodeId })
+        await _db.Insertable(new SysDepartmentClosure
+        {
+            AncestorId = nodeId,
+            DescendantId = nodeId,
+            CreatedAtUtc = DateTime.UtcNow
+        })
             .ExecuteCommandAsync();
 
         if (parentId is null) return;
@@ -147,7 +152,12 @@ internal sealed class DepartmentAppService : IDepartmentAppService
 
         foreach (var a in ancestors)
         {
-            await _db.Insertable(new SysDepartmentClosure { AncestorId = a.AncestorId, DescendantId = nodeId })
+            await _db.Insertable(new SysDepartmentClosure
+            {
+                AncestorId = a.AncestorId,
+                DescendantId = nodeId,
+                CreatedAtUtc = DateTime.UtcNow
+            })
                 .ExecuteCommandAsync();
         }
     }
@@ -174,7 +184,12 @@ internal sealed class DepartmentAppService : IDepartmentAppService
 
         foreach (var d in all)
         {
-            await _db.Insertable(new SysDepartmentClosure { AncestorId = d.Id, DescendantId = d.Id })
+            await _db.Insertable(new SysDepartmentClosure
+            {
+                AncestorId = d.Id,
+                DescendantId = d.Id,
+                CreatedAtUtc = DateTime.UtcNow
+            })
                 .ExecuteCommandAsync();
         }
 
@@ -192,7 +207,12 @@ internal sealed class DepartmentAppService : IDepartmentAppService
 
             foreach (var ancestorId in ancestors)
             {
-                await _db.Insertable(new SysDepartmentClosure { AncestorId = ancestorId, DescendantId = d.Id })
+                await _db.Insertable(new SysDepartmentClosure
+                {
+                    AncestorId = ancestorId,
+                    DescendantId = d.Id,
+                    CreatedAtUtc = DateTime.UtcNow
+                })
                     .ExecuteCommandAsync();
             }
         }
