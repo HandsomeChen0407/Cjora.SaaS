@@ -1,6 +1,10 @@
 using System.Text;
 using Cjora.SaaS.Core.Extensions;
 using Cjora.SaaS.Core.SqlSugar.Constants;
+using Cjora.SaaS.Crm;
+using Cjora.SaaS.Crm.Entities;
+using Cjora.SaaS.Pm;
+using Cjora.SaaS.Pm.Entities;
 using Cjora.SaaS.Sys;
 using Cjora.SaaS.Sys.Api.Auth;
 using Cjora.SaaS.Sys.DataPermission.Entities;
@@ -102,6 +106,19 @@ builder.Services.AddCjoraSaaSWithSqlSugar(
     });
 builder.Services.AddCjoraSaaSSys();
 
+// 可插拔业务模块：仅当启用并注册对应 Provider 时，方可为用户颁发 Project(4)/Customer(5) 的 data_scope（见 Core EnsureDataScopeHandledByProviders）。
+var enableCrmDataPermission = builder.Configuration.GetValue("Modules:EnableCrmDataPermission", false);
+var enablePmDataPermission = builder.Configuration.GetValue("Modules:EnablePmDataPermission", false);
+if (enableCrmDataPermission)
+{
+    builder.Services.AddCjoraSaaSCrmDataPermission();
+}
+
+if (enablePmDataPermission)
+{
+    builder.Services.AddCjoraSaaSPmDataPermission();
+}
+
 var app = builder.Build();
 
 app.Services.ValidateSaaSOrThrow();
@@ -112,7 +129,8 @@ using (var scope = app.Services.CreateScope())
     catalogDb.CodeFirst.InitTables(typeof(SysTenant));
 
     var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
-    db.CodeFirst.InitTables(
+    var tenantEntityTypes = new List<Type>
+    {
         typeof(SysUser),
         typeof(SysRole),
         typeof(SysDepartment),
@@ -124,7 +142,30 @@ using (var scope = app.Services.CreateScope())
         typeof(SysDepartmentClosure),
         typeof(SysPermission),
         typeof(SysDictType),
-        typeof(SysDictItem));
+        typeof(SysDictItem)
+    };
+
+    if (enableCrmDataPermission)
+    {
+        tenantEntityTypes.AddRange(
+        [
+            typeof(CrmCustomer),
+            typeof(CrmCustomerContact),
+            typeof(CrmCustomerFollow)
+        ]);
+    }
+
+    if (enablePmDataPermission)
+    {
+        tenantEntityTypes.AddRange(
+        [
+            typeof(PmProject),
+            typeof(PmProjectMember),
+            typeof(PmProjectContract)
+        ]);
+    }
+
+    db.CodeFirst.InitTables(tenantEntityTypes.ToArray());
 
     DatabaseSchemaValidator.ValidateIndexes(db);
 

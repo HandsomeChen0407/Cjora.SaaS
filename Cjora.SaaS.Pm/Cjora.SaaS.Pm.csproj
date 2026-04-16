@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Cjora.SaaS.Pm</RootNamespace>
+    <AssemblyName>Cjora.SaaS.Pm</AssemblyName>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <Description>PM 项目域（可复用类库）：实体与 SqlSugar 项目域行级过滤器；不依赖具体宿主。可通过 dotnet pack 发布为 NuGet。</Description>
+    <IsPackable>true</IsPackable>
+    <PackageId>Cjora.SaaS.Pm</PackageId>
+    <Version>1.0.0</Version>
+    <Authors>Cjora</Authors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Cjora.SaaS.Core\Cjora.SaaS.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.0" />
+  </ItemGroup>
+
+</Project>
