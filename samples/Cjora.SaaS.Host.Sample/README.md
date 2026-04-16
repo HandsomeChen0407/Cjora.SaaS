@@ -34,7 +34,7 @@ Cjora.SaaS.Host.Sample
 
 - 与 `Sys.Api` 完全相同的 IAM API
 - 通过配置动态开启 CRM / PM 数据权限扩展，开启后：
-  - 注册对应的 `ISqlSugarDataPermissionFilterProvider`
+  - 注册对应的 `IDataScopeIdResolver`
   - CodeFirst 创建业务实体表
 
 ---
@@ -60,7 +60,7 @@ dotnet run --project samples/Cjora.SaaS.Host.Sample
 ```
 
 开启 CRM 数据权限后，如果用户的 `data_scope` 声明为 `Customer`，  
-`CrmSqlSugarDataPermissionFilterProvider` 会自动对 `ICustomerScopedEntity` 表追加 EXISTS 子查询过滤。
+`CustomerDataScopeIdResolver` 会自动对 `ICustomerScopedEntity` 表追加 EXISTS 子查询过滤。
 
 ---
 

@@ -5,52 +5,86 @@ using Cjora.SaaS.Core.DataPermission.Abstractions;
 using Cjora.SaaS.Core.DataPermission.Enums;
 using Cjora.SaaS.Core.DataPermission.Models;
 using Cjora.SaaS.Core.Diagnostics;
+using Cjora.SaaS.Core.MultiTenancy.Abstractions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace Cjora.SaaS.Core.DataPermission.Providers;
 
 /// <summary>
-/// 默认 <see cref="IDataPermissionResolver"/>：从 <see cref="ICurrentUser"/> 声明与 <see cref="DataPermissionClaimOptions"/> 解析 <see cref="DataPermissionResult"/>。
+/// 默认 <see cref="IDataPermissionResolver"/>：从 JWT Claims 解析 scope/bypass，
+/// 再调用已注册的 <see cref="IDataScopeIdResolver"/> 填充可访问 Id 列表。
 /// </summary>
-/// <remarks>
-/// <b>// CHANGED</b>：<see cref="ResolveAsync"/> 包装同步解析逻辑，行为与历史 <c>Resolve()</c> 等价，便于宿主替换为真异步实现。
-/// </remarks>
-public sealed class DefaultDataPermissionResolver : IDataPermissionResolver
+public class DefaultDataPermissionResolver : IDataPermissionResolver
 {
     private readonly ICurrentUser _currentUser;
+    private readonly ITenantProvider _tenantProvider;
     private readonly DataPermissionClaimOptions _claimOptions;
     private readonly ILogger<DefaultDataPermissionResolver> _logger;
+    private readonly IEnumerable<IDataScopeIdResolver> _scopeIdResolvers;
 
     /// <summary>
     /// 初始化 <see cref="DefaultDataPermissionResolver"/>。
     /// </summary>
     public DefaultDataPermissionResolver(
         ICurrentUser currentUser,
+        ITenantProvider tenantProvider,
         IOptions<DataPermissionClaimOptions> claimOptions,
-        ILogger<DefaultDataPermissionResolver> logger)
+        ILogger<DefaultDataPermissionResolver> logger,
+        IEnumerable<IDataScopeIdResolver> scopeIdResolvers)
     {
         _currentUser = currentUser;
+        _tenantProvider = tenantProvider;
         _claimOptions = claimOptions.Value;
         _logger = logger;
+        _scopeIdResolvers = scopeIdResolvers;
     }
 
     /// <inheritdoc />
-    public Task<DataPermissionResult> ResolveAsync()
+    public async Task<DataPermissionResult> ResolveAsync()
     {
-        // IMPORTANT: 企业级数据权限：不再从 JWT/Claims 读取部门列表；部门/项目/客户等数据域关系由数据库表在查询时实时计算。
         var bypass = ResolveBypass();
         var scope = ResolveScope(bypass);
-        return Task.FromResult(new DataPermissionResult(scope, bypass, _currentUser.UserId, Array.Empty<long>()));
+
+        if (bypass || scope is DataScopeKind.All or DataScopeKind.Tenant or DataScopeKind.Self)
+        {
+            return new DataPermissionResult(
+                scope, bypass, _currentUser.UserId,
+                Array.Empty<long>(), Array.Empty<long>(), Array.Empty<long>());
+        }
+
+        var tenantId = _tenantProvider.GetTenantId();
+        var deptIds = (IReadOnlyList<long>)Array.Empty<long>();
+        var projIds = (IReadOnlyList<long>)Array.Empty<long>();
+        var custIds = (IReadOnlyList<long>)Array.Empty<long>();
+
+        foreach (var resolver in _scopeIdResolvers)
+        {
+            if (resolver.Scope != scope) continue;
+
+            var ids = await resolver.ResolveAccessibleIdsAsync(
+                _currentUser.UserId, tenantId).ConfigureAwait(false);
+
+            switch (resolver.Scope)
+            {
+                case DataScopeKind.Department: deptIds = ids; break;
+                case DataScopeKind.Project:    projIds = ids; break;
+                case DataScopeKind.Customer:   custIds = ids; break;
+            }
+        }
+
+        return new DataPermissionResult(scope, bypass, _currentUser.UserId, deptIds, projIds, custIds);
     }
 
-    private bool ResolveBypass()
+    /// <summary>
+    /// 从 JWT Claims 解析 bypass 标志。
+    /// </summary>
+    protected bool ResolveBypass()
     {
         var raw = _currentUser.FindClaim(_claimOptions.BypassRowLevelFiltersClaimType);
         var bypass = string.Equals(raw, _claimOptions.BypassRowFiltersClaimValue, StringComparison.OrdinalIgnoreCase);
         if (bypass)
         {
-            // P2 审计：bypass 属于高危开关，必须记录。
             SecurityAuditEventSource.Log.BypassRowLevelFilters(_currentUser.UserId, _currentUser.TenantId);
             _logger.LogWarning("BypassRowLevelFilters enabled. UserId={UserId}, TenantId={TenantId}", _currentUser.UserId, _currentUser.TenantId);
         }
@@ -58,7 +92,10 @@ public sealed class DefaultDataPermissionResolver : IDataPermissionResolver
         return bypass;
     }
 
-    private DataScopeKind ResolveScope(bool bypassRowLevelFilters)
+    /// <summary>
+    /// 从 JWT Claims 解析数据范围。
+    /// </summary>
+    protected DataScopeKind ResolveScope(bool bypassRowLevelFilters)
     {
         if (bypassRowLevelFilters)
         {
@@ -87,6 +124,4 @@ public sealed class DefaultDataPermissionResolver : IDataPermissionResolver
 
         throw new SecurityException("Invalid data_scope claim");
     }
-
-    // NOTE: DepartmentIdsClaimType 保留为兼容配置项，但默认解析器不再消费 dept_ids。
 }

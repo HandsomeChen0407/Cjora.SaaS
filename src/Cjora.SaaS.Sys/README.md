@@ -13,7 +13,7 @@ IAM（身份与访问管理）业务模块。
 | 负责 | 不负责 |
 |------|--------|
 | 实现 `IDataPermissionResolver`（含缓存装饰器） | 数据权限的**框架合法性校验**（Core 负责） |
-| 实现 `ISqlSugarDataPermissionFilterProvider`（Department） | CRM/PM 的 Provider（各业务模块自己注册） |
+| 实现 `IDataScopeIdResolver`（Department） | CRM/PM 的 Provider（各业务模块自己注册） |
 | 实现 `ITenantStorageRoutingProvider`（查目录库） | Core 的 QueryFilter 编排逻辑 |
 | 用户、角色、部门、权限码、字典 CRUD | 任何 CRM/PM 业务实体 |
 | 缓存权限结果（`CachingDataPermissionResolver`） | 缓存的技术实现（由 Caching 提供） |
@@ -49,7 +49,7 @@ IDataPermissionResolver（DI 注入）
   **只有 `ICurrentUser.IsSuperAdmin = true` 时才允许 bypass，否则日志告警并忽略该 Claim**
 - `CachingDataPermissionResolver`：`ICachingService` + `ILockService` 防止并发击穿；版本号失效机制实现手动清缓存
 
-### 2. Department 行级过滤器（`SysSqlSugarDataPermissionFilterProvider`）
+### 2. Department 行级过滤器（`DepartmentDataScopeIdResolver`）
 
 - 处理 `DataScopeKind.Department`
 - 实现：EXISTS（`sys_user_data_scope` JOIN `sys_department_closure`），使用 Subqueryable，不用 IN
@@ -87,7 +87,7 @@ builder.Services.AddCjoraSaaSSys();
 `AddCjoraSaaSSys()` 内部自动完成：
 - 替换 `IDataPermissionResolver` 为带缓存的实现
 - 替换 `ITenantStorageRoutingProvider` 为目录表查询实现
-- 注册 `SysSqlSugarDataPermissionFilterProvider`
+- 注册 `DepartmentDataScopeIdResolver`
 - 注册 `DataPermissionRequestLogEnricher`
 - 注册 30s 请求超时策略
 
@@ -112,8 +112,8 @@ var codes = await _effectivePermissionResolver.ResolveAsync(userId, tenantId, ct
 
 | 错误 | 后果 | 正确做法 |
 |------|------|----------|
-| 在 Sys 中实现 CRM/PM 的 DataPermission Provider | 架构越界，Sys 不应知道 CRM/PM 的业务实体 | CRM/PM 各自实现 `ISqlSugarDataPermissionFilterProvider` |
+| 在 Sys 中实现 CRM/PM 的 DataPermission Provider | 架构越界，Sys 不应知道 CRM/PM 的业务实体 | CRM/PM 各自实现 `IDataScopeIdResolver` |
 | 绕过 `CachingDataPermissionResolver` 直接注入 `SysSecuredDataPermissionResolver` | 每次请求都查 DB，缺少缓存保护 | 通过 `IDataPermissionResolver` 接口注入（DI 已注册为带缓存的实现） |
 | 权限变更后不调用缓存失效 | 用户看到旧权限，最长 5~10 分钟才自动过期 | 变更后调用 `ISysSecurityCacheControl.InvalidatePermissionsAsync` |
-| `DataScopeKind.Department` 但未注册 Sys（含 `SysSqlSugarDataPermissionFilterProvider`） | 创建 SqlSugar Client 时 Fail-Fast | 必须调用 `AddCjoraSaaSSys()` |
+| `DataScopeKind.Department` 但未注册 Sys（含 `DepartmentDataScopeIdResolver`） | 创建 SqlSugar Client 时 Fail-Fast | 必须调用 `AddCjoraSaaSSys()` |
 | 在 Sys 中直接引用 Caching 的实现类（如 `RedisCacheService`） | 绑定具体实现，无法切换 Memory/Redis | 只注入 `ICachingService` 接口 |
