@@ -1,73 +1,135 @@
 # Cjora.SaaS.Sys.Api
 
-## 职责
+## 模块职责
 
-IAM HTTP 宿主：JWT、`PermCode` 接口授权、`Sys` + Core；可选 CRM/PM 模块开关见 `appsettings` `Modules:*`。
+**生产级 IAM 宿主**：只包含 Core + Sys + Sys.Web，不加载任何业务模块（CRM / PM 等）。  
+负责将所有依赖装配为可运行的 ASP.NET Core 应用，并完成 SQLite CodeFirst 建表与默认租户初始化。
 
-## 授权
+---
 
-- 全局 `FallbackPolicy`：已认证用户。
-- `[AllowAnonymous]`：仅 `POST /api/auth/login`。
-- 其余 Action：`[AuthorizePermCode("模块:资源:动作")]` → `PermCodePolicyProvider` → `PermCodeRequirement` → `PermCodeAuthorizationHandler`（`IsSuperAdmin` 直接通过）。
+## 架构边界
 
-## bypass_row_filters
+| 负责 | 不负责 |
+|------|--------|
+| Program.cs DI 装配与管道组装 | 业务逻辑（委托给 Sys） |
+| JWT 鉴权配置、Swagger 接入 | CRM/PM 模块注册（由 Host.Sample 负责） |
+| SQLite CodeFirst 建表（仅 IAM 实体） | ORM 定义（由 Sys 的实体定义） |
+| CORS 配置（`SysWebOrigins`） | 反向代理 / TLS 终止 |
+| 环境变量 / `appsettings.json` 读取 | 多数据库（当前单 SQLite） |
 
-- 解析：`Cjora.SaaS.Sys` 中 `SysSecuredDataPermissionResolver`（替换默认 `IDataPermissionResolver`）。
-- 规则：JWT 声明 `bypass_row_filters=1` **且** `ICurrentUser.IsSuperAdmin`（声明 `is_super_admin=1`）时生效；否则忽略并记 Warning。
-- `is_super_admin`：`JwtTokenService` 在用户任一角色的 `IsSystem==true` 或 `Code==super_admin`（忽略大小写）时写入。
+---
 
-## 上线前
+## 依赖关系
 
-须在 `sys_permission` 中配置下表 **PermCode** 并与角色绑定；**至少**为登录用户角色授予 `sys:me:read`，否则 `GET /api/me` 403。
+```
+Cjora.SaaS.Sys.Api
+  → 依赖 Cjora.SaaS.Core
+  → 依赖 Cjora.SaaS.Sys
+  → 依赖 Cjora.SaaS.Sys.Web
+  → 依赖 Cjora.SaaS.Caching
+  → 依赖 Cjora.SaaS.Logging
+```
 
-## 接口 → PermCode（高风险标 ※）
+不引用 Crm / Pm 程序集。
 
-| 方法 | 路径 | PermCode | 风险 |
-|------|------|----------|------|
-| POST | /api/auth/login | （匿名） | |
-| GET | /api/me | sys:me:read | |
-| GET | /api/users | sys:user:list | |
-| GET | /api/users/{id} | sys:user:detail | |
-| POST | /api/users | sys:user:create | ※ |
-| PUT | /api/users/{id} | sys:user:update | ※ |
-| DELETE | /api/users/{id} | sys:user:delete | ※ |
-| GET | /api/users/{userId}/roles | sys:user:role:list | |
-| POST | /api/users/{userId}/roles | sys:user:role:assign | ※ |
-| DELETE | /api/users/{userId}/roles/{roleId} | sys:user:role:remove | ※ |
-| GET | /api/roles | sys:role:list | |
-| GET | /api/roles/{id} | sys:role:detail | |
-| POST | /api/roles | sys:role:create | ※ |
-| PUT | /api/roles/{id} | sys:role:update | ※ |
-| DELETE | /api/roles/{id} | sys:role:delete | ※ |
-| GET | /api/roles/{roleId}/permissions | sys:role:permission:list | ※ |
-| GET | /api/departments | sys:department:list | |
-| GET | /api/departments/tree | sys:department:tree | |
-| GET | /api/departments/{id} | sys:department:detail | |
-| POST | /api/departments | sys:department:create | ※ |
-| PUT | /api/departments/{id} | sys:department:update | ※ |
-| DELETE | /api/departments/{id} | sys:department:delete | ※ |
-| GET | /api/tenants | sys:tenant:list | |
-| GET | /api/tenants/{tenantCode} | sys:tenant:detail | |
-| POST | /api/tenants | sys:tenant:create | ※ |
-| PUT | /api/tenants/{tenantCode} | sys:tenant:update | ※ |
-| GET | /api/permissions | sys:permission:list | |
-| GET | /api/permissions/tree | sys:permission:tree | |
-| GET | /api/permissions/{id} | sys:permission:detail | |
-| POST | /api/permissions | sys:permission:create | ※ |
-| PUT | /api/permissions/{id} | sys:permission:update | ※ |
-| DELETE | /api/permissions/{id} | sys:permission:delete | ※ |
-| GET | /api/dict-types | sys:dict-type:list | |
-| GET | /api/dict-types/{id} | sys:dict-type:detail | |
-| POST | /api/dict-types | sys:dict-type:create | ※ |
-| PUT | /api/dict-types/{id} | sys:dict-type:update | ※ |
-| DELETE | /api/dict-types/{id} | sys:dict-type:delete | ※ |
-| GET | /api/dict-types/{typeId}/items | sys:dict-item:list | |
-| GET | /api/dict-types/{typeId}/items/{itemId} | sys:dict-item:detail | |
-| POST | /api/dict-types/{typeId}/items | sys:dict-item:create | ※ |
-| PUT | /api/dict-types/{typeId}/items/{itemId} | sys:dict-item:update | ※ |
-| DELETE | /api/dict-types/{typeId}/items/{itemId} | sys:dict-item:delete | ※ |
+---
 
-## 残留风险
+## 核心能力
 
-- 数据库未同步 PermCode 时除 SuperAdmin 外全部 403。
-- `JwtTokenService` 的 `data_scope` 字符串与 `DataScopeKind` 解析一致性未在本轮修改（既有行为）。
+- 完整 IAM API（用户 / 角色 / 部门 / 权限 / 字典 / 租户）
+- JWT Bearer 鉴权 + `PermCode` 功能权限
+- 结构化请求日志（`UseCjoraRequestLogging`），含 DataScope 领域字段
+- 分布式缓存（Memory 默认，可切换 Redis）
+- 全局 30s 请求超时（`UseRequestTimeouts`）
+- 启动时 `ValidateSaaSOrThrow()` 验证 Provider 注册完整性
+
+---
+
+## 启动顺序（管道）
+
+```
+UseRequestTimeouts
+UseCjoraSaaSSysInfrastructure  →  内含 UseCjoraRequestLogging（日志+异常处理）
+UseCors
+UseCjoraSaaSSysTenantResolution  →  从 X-Tenant-Id Header 解析当前租户
+UseAuthentication
+UseAuthorization
+MapControllers
+```
+
+---
+
+## 配置说明
+
+```json
+// appsettings.json
+{
+  "Cache": {
+    "Provider": "Memory",          // 改为 "Redis" 启用分布式缓存
+    "DefaultExpireMinutes": 7,
+    "Redis": {
+      "Configuration": "localhost:6379",
+      "Database": 0
+    }
+  },
+  "ConnectionStrings": {
+    "SqlSugar": "DataSource=cjora_sys_api.db"  // SQLite，生产替换为 MySQL/PostgreSQL 连接串
+  },
+  "Jwt": {
+    "Issuer": "CjoraSaaS",
+    "Audience": "CjoraSaaS",
+    "Secret": "【至少 32 字符的随机密钥】",
+    "ExpiresHours": 8
+  },
+  "Cors": {
+    "SysWebOrigins": [ "http://localhost:5173" ]
+  }
+}
+```
+
+---
+
+## 使用方式
+
+```bash
+# 直接运行（开发）
+dotnet run --project src/Cjora.SaaS.Sys.Api
+
+# 切换 Redis 缓存
+# appsettings.json -> Cache:Provider = "Redis"
+# 确保 Redis 已启动，默认连接 localhost:6379
+```
+
+启动后：
+- Swagger UI：`http://localhost:{port}/swagger`
+- 登录接口：`POST /api/auth/login`
+- 所有接口需要 `Authorization: Bearer {token}` + `X-Tenant-Id: {tenantCode}` Header
+
+---
+
+## 示例：最简 curl 验证
+
+```bash
+# 1. 登录
+curl -X POST http://localhost:5000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -H "X-Tenant-Id: default" \
+  -d '{"username":"admin","password":"123456"}'
+
+# 2. 带 Token 查询用户列表
+curl http://localhost:5000/api/users \
+  -H "Authorization: Bearer {token}" \
+  -H "X-Tenant-Id: default"
+```
+
+---
+
+## 常见错误用法
+
+| 错误 | 后果 | 正确做法 |
+|------|------|----------|
+| 在 Sys.Api 的 `Program.cs` 中注册 `AddCjoraSaaSCrmDataPermission` | 破坏"生产宿主只含 IAM"约束 | CRM/PM 数据权限只在 Host.Sample 中注册 |
+| 不配置 `X-Tenant-Id` 直接调用接口 | `ITenantProvider.GetTenantId()` 返回空，可能 Fail-Fast | 每次请求必须带 `X-Tenant-Id` Header |
+| 生产环境使用 SQLite | 不支持并发写入，无法多实例部署 | 生产替换 `ConnectionStrings:SqlSugar` 为 MySQL / PostgreSQL 连接串 |
+| 多实例部署时仍用 `Cache:Provider=Memory` | 各实例缓存不共享，权限变更后部分实例仍读旧数据 | 多实例必须切换 `Cache:Provider=Redis` |
+| JWT Secret 提交到版本库 | 密钥泄露，Token 可伪造 | 通过环境变量或 Secret Manager 注入 |

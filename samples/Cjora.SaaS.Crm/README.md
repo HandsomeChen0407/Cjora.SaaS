@@ -2,51 +2,89 @@
 
 ## 模块职责
 
-**客户域可复用类库**：客户主数据、联系人、跟进记录；实现 **Customer 数据范围** 的 SqlSugar 全局过滤（`DataScopeKind.Customer`）。
+演示如何扩展 Core 框架，为 **CRM 客户域**（`DataScopeKind.Customer`）实现行级数据权限。  
+本项目是业务模块实现 `ISqlSugarDataPermissionFilterProvider` 的参考范例，不包含完整 CRM 业务逻辑。
 
-**依赖**：仅 `Cjora.SaaS.Core`（**不**依赖 Sys，便于多宿主复用与 NuGet 分发）。
+---
 
 ## 架构边界
 
-| 内容 | 说明 |
-|------|------|
-| 实体 | `CrmCustomer`、`CrmCustomerContact`、`CrmCustomerFollow`，均含租户与部门等 Core 基类字段。 |
-| 数据隔离 | `ICustomerScopedEntity` + `CrmSqlSugarDataPermissionFilterProvider`（EXISTS `crm_customer`）。 |
-| 与 Sys | 无程序集引用；`UserId`/`CreatorUserId` 与 Sys 用户表 **仅 ID 对应**，不 Join。 |
+| 负责 | 不负责 |
+|------|--------|
+| `ICustomerScopedEntity` 标记接口（供实体实现） | 客户 CRUD 业务接口 |
+| `CrmSqlSugarDataPermissionFilterProvider`（Customer 行级过滤） | 用户、角色、权限等 IAM 功能 |
+| `AddCjoraSaaSCrmDataPermission()` DI 注册入口 | 缓存、日志基础设施 |
+| 示例实体（`CrmCustomer`、`CrmCustomerContact`、`CrmCustomerFollow`） | 完整的 CRM 产品功能 |
 
-## 客户域模型
+不引用 `Cjora.SaaS.Sys`、`Cjora.SaaS.Logging`、`Cjora.SaaS.Caching`，仅依赖 Core。
 
-- **CrmCustomer**：客户主表；`DepartmentId` 表示归属部门；`CreatorUserId` 表示创建人。
-- **CrmCustomerContact / CrmCustomerFollow**：含 `customer_id` 指向客户。
+---
 
-## 客户归属与 Customer 范围语义
+## 依赖关系
 
-- **部门维度**：实体继承 `TenantDepartmentEntityBase`，在 `DataScopeKind.Department` 下由 **Sys** 的部门 Provider 处理。
-- **Customer 范围（`DataScopeKind.Customer`）**：当前实现为：仅可见 **创建人为当前用户** 的客户及其子行（EXISTS 子查询比对 `crm_customer.creator_user_id`）。**非**单独 Owner 表；若产品需要「负责人/共享团队」，需在 CRM 内扩展表结构并同步改 Provider。
-
-## 如何接入 DataScope
-
-1. 宿主配置 `Modules:EnableCrmDataPermission = true`（见 Sys.Api `Program.cs`）。
-2. 调用 `services.AddCjoraSaaSCrmDataPermission()`。
-3. JWT / 角色仅当启用 CRM Provider 后，才可为用户颁发 **`data_scope = 5`（Customer）**；否则 Core **Fail-Fast**。
-
-## 示例：宿主注册
-
-```csharp
-builder.Services.AddCjoraSaaSCrmDataPermission();
+```
+Cjora.SaaS.Crm
+  → 依赖 Cjora.SaaS.Core（ISqlSugarDataPermissionFilterProvider 接口）
+  ← 被 Host.Sample 按需引用（EnableCrmDataPermission=true 时）
 ```
 
-## 示例：实体实现标记接口
+---
+
+## 核心能力
+
+### `CrmSqlSugarDataPermissionFilterProvider`
+
+- 处理 `DataScopeKind.Customer`
+- 对所有实现 `ICustomerScopedEntity` 的表追加 EXISTS 子查询：
+
+```sql
+-- 伪 SQL
+WHERE EXISTS (
+  SELECT 1 FROM crm_customer c
+  WHERE c.tenant_id = entity.tenant_id
+    AND c.id = entity.customer_id
+    AND c.creator_user_id = @currentUserId
+)
+```
+
+- 不使用 IN（避免大量 Id 导致的 SQL 膨胀）
+- `BypassRowLevelFilters = true` 时自动跳过
+
+---
+
+## 使用方式
 
 ```csharp
-public sealed class CrmCustomerContact : TenantDepartmentEntityBase, ICustomerScopedEntity
+// 在宿主 Program.cs 中条件注册：
+if (enableCrmDataPermission)
 {
-    public long CustomerId { get; set; }
-    // ...
+    builder.Services.AddCjoraSaaSCrmDataPermission();
 }
 ```
 
+注意：**未调用此方法**时，不得为用户颁发 `data_scope = Customer`，否则 Core 在创建 SqlSugar Client 时 Fail-Fast。
+
+---
+
+## 示例：自定义实体接入客户域过滤
+
+```csharp
+// 1. 定义实体，实现标记接口
+public class CrmCustomerOrder : ITenantScopedEntity, ISoftDeleteEntity, ICustomerScopedEntity
+{
+    public long CustomerId { get; set; }  // ICustomerScopedEntity 要求
+    // ... 其他字段
+}
+
+// 2. 无需额外配置，Provider 自动对所有 ICustomerScopedEntity 表生效
+```
+
+---
+
 ## 常见错误用法
 
-- ❌ 未启用 `AddCjoraSaaSCrmDataPermission` 却颁发 `data_scope=Customer(5)`。
-- ❌ 把「客户功能权限」与「Customer 数据范围」混为一谈——前者用 PermCode，后者用 `DataScopeKind.Customer` + Provider。
+| 错误 | 后果 | 正确做法 |
+|------|------|----------|
+| 在 Sys 或 Core 中引用 Crm 程序集 | 产生单向依赖循环，破坏分层架构 | Crm 只被宿主（Host.Sample）引用 |
+| 实体未实现 `ICustomerScopedEntity` 但期望被 Client 域过滤 | 过滤器对此表不生效，数据全量可见 | 必须显式实现 `ICustomerScopedEntity` |
+| 调用 `AddCjoraSaaSCrmDataPermission` 但颁发的用户 `data_scope` 仍为其他值 | Client 域过滤器注册了但当前用户 Scope 不匹配，过滤器条件自动短路（不生效） | 确保权限码 `data_scope` 与 Provider 的 `HandledDataScopes` 一致 |

@@ -1,7 +1,7 @@
-﻿using System.Text.Json;
-using Cjora.SaaS.Caching.Abstractions;
+﻿using Cjora.SaaS.Caching.Abstractions;
 using Cjora.SaaS.Caching.Models;
 using Microsoft.Extensions.Options;
+using Newtonsoft.Json;
 using StackExchange.Redis;
 
 namespace Cjora.SaaS.Caching.Providers;
@@ -9,7 +9,7 @@ namespace Cjora.SaaS.Caching.Providers;
 /// <summary>基于 Redis HASH 命令集的 HashMap 实现。</summary>
 public sealed class RedisHashMapService : IHashMapService
 {
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    private static readonly JsonSerializerSettings JsonSettings = new() { NullValueHandling = NullValueHandling.Ignore };
 
     private readonly IConnectionMultiplexer _mux;
     private readonly CacheOptions _options;
@@ -24,14 +24,14 @@ public sealed class RedisHashMapService : IHashMapService
 
     public async Task SetFieldAsync<T>(string key, string field, T value, TimeSpan? expire = null, CancellationToken cancellationToken = default)
     {
-        await Db.HashSetAsync(key, field, JsonSerializer.Serialize(value, JsonOptions)).ConfigureAwait(false);
+        await Db.HashSetAsync(key, field, JsonConvert.SerializeObject(value, JsonSettings)).ConfigureAwait(false);
         await ApplyExpireAsync(key, expire).ConfigureAwait(false);
     }
 
     public async Task SetFieldsAsync<T>(string key, IEnumerable<KeyValuePair<string, T>> fields, TimeSpan? expire = null, CancellationToken cancellationToken = default)
     {
         var entries = fields
-            .Select(kv => new HashEntry(kv.Key, JsonSerializer.Serialize(kv.Value, JsonOptions)))
+            .Select(kv => new HashEntry(kv.Key, JsonConvert.SerializeObject(kv.Value, JsonSettings)))
             .ToArray();
 
         await Db.HashSetAsync(key, entries).ConfigureAwait(false);
@@ -41,7 +41,7 @@ public sealed class RedisHashMapService : IHashMapService
     public async Task<T?> GetFieldAsync<T>(string key, string field, CancellationToken cancellationToken = default)
     {
         var raw = await Db.HashGetAsync(key, field).ConfigureAwait(false);
-        return raw.IsNullOrEmpty ? default : JsonSerializer.Deserialize<T>(raw!, JsonOptions);
+        return raw.IsNullOrEmpty ? default : JsonConvert.DeserializeObject<T>(raw!, JsonSettings);
     }
 
     public async Task<Dictionary<string, T>> GetAllAsync<T>(string key, CancellationToken cancellationToken = default)
@@ -53,7 +53,7 @@ public sealed class RedisHashMapService : IHashMapService
         {
             if (!entry.Value.IsNullOrEmpty)
             {
-                var val = JsonSerializer.Deserialize<T>(entry.Value!, JsonOptions);
+                var val = JsonConvert.DeserializeObject<T>(entry.Value!, JsonSettings);
                 if (val is not null)
                     result[entry.Name!] = val;
             }

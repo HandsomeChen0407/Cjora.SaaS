@@ -15,7 +15,9 @@ using Cjora.SaaS.Sys.Departments;
 using Cjora.SaaS.Sys.Entities;
 using Cjora.SaaS.Sys.Permissions;
 using Cjora.SaaS.Sys.Repositories;
+using Cjora.SaaS.Logging.Abstractions;
 using Cjora.SaaS.Sys.Infrastructure.DataPermission;
+using Cjora.SaaS.Sys.Infrastructure.Logging;
 using Cjora.SaaS.Sys.Infrastructure.Repositories;
 using Microsoft.AspNetCore.Http.Timeouts;
 using Microsoft.Extensions.DependencyInjection;
@@ -44,6 +46,8 @@ public static class SysServiceCollectionExtensions
 
         services.AddRequestTimeouts(static o =>
             o.DefaultPolicy = new RequestTimeoutPolicy { Timeout = TimeSpan.FromSeconds(30) });
+
+        services.AddSingleton<IRequestLogEnricher, DataPermissionRequestLogEnricher>();
 
         services.AddScoped<SysSecurityCacheVersionStore>();
         services.AddScoped<ISysSecurityCacheControl, SysSecurityCacheControl>();

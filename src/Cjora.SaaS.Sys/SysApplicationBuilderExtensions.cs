@@ -1,6 +1,6 @@
 using Cjora.SaaS.Core.Extensions;
 using Cjora.SaaS.Core.MultiTenancy.Hosting;
-using Cjora.SaaS.Sys.Infrastructure.Http;
+using Cjora.SaaS.Logging.Hosting;
 using Microsoft.AspNetCore.Builder;
 
 namespace Cjora.SaaS.Sys;
@@ -11,10 +11,8 @@ namespace Cjora.SaaS.Sys;
 public static class SysApplicationBuilderExtensions
 {
     /// <summary>
-    /// 注册租户解析中间件（内部调用 Core 的 <c>Cjora.SaaS.Core.Extensions.ApplicationBuilderExtensions.UseTenantResolution</c>）。
+    /// 注册租户解析中间件（内部调用 Core 的 <c>UseTenantResolution</c>）。
     /// </summary>
-    /// <param name="application">应用构建器。</param>
-    /// <returns>同一构建器。</returns>
     public static IApplicationBuilder UseCjoraSaaSSysTenantResolution(this IApplicationBuilder application)
     {
         ArgumentNullException.ThrowIfNull(application);
@@ -22,11 +20,12 @@ public static class SysApplicationBuilderExtensions
     }
 
     /// <summary>
-    /// 注册请求日志与全局异常 JSON 响应（应置于管道靠前位置；请在之前调用 UseRequestTimeouts）。
+    /// 注册请求日志与全局异常 JSON 响应（内部调用 <c>UseCjoraRequestLogging</c>）。
+    /// 应置于管道靠前位置（在 <c>UseRequestTimeouts</c> 之后，认证之前）。
     /// </summary>
     public static IApplicationBuilder UseCjoraSaaSSysInfrastructure(this IApplicationBuilder application)
     {
         ArgumentNullException.ThrowIfNull(application);
-        return application.UseMiddleware<CjoraSysRequestLoggingAndExceptionMiddleware>();
+        return application.UseCjoraRequestLogging();
     }
 }

@@ -13,6 +13,7 @@
   <Folder Name="/src/">
     <Project Path="src/Cjora.SaaS.Core/Cjora.SaaS.Core.csproj" />
     <Project Path="src/Cjora.SaaS.Caching/Cjora.SaaS.Caching.csproj" />
+    <Project Path="src/Cjora.SaaS.Logging/Cjora.SaaS.Logging.csproj" />
     <Project Path="src/Cjora.SaaS.Sys.Api/Cjora.SaaS.Sys.Api.csproj" />
     <Project Path="src/Cjora.SaaS.Sys.Web/Cjora.SaaS.Sys.Web.csproj" />
     <Project Path="src/Cjora.SaaS.Sys/Cjora.SaaS.Sys.csproj" />

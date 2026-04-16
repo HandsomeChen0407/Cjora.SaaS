@@ -1,103 +1,143 @@
 # Cjora.SaaS
 
-多租户 SaaS 基座：**Core（规则与抽象）** + **Caching（缓存能力）** + **Sys（IAM）** + **CRM / PM（可插拔业务域）**。
+多租户 SaaS 框架基座：Core（规则与抽象）+ Caching（缓存能力）+ Logging（请求日志）+ Sys（IAM）+ 可插拔业务域（CRM / PM）。
+
+---
 
 ## 解决方案结构
 
 ```
 /src
-  Cjora.SaaS.Core/          规则与抽象：多租户、数据权限、SqlSugar、仓储
-  Cjora.SaaS.Caching/       缓存能力：ICachingService / ILockService / IGeoService / IHashMapService
-  Cjora.SaaS.Sys/           IAM：用户、角色、部门、租户、字典
-  Cjora.SaaS.Sys.Api/       生产宿主（仅 IAM）
-  Cjora.SaaS.Sys.Web/       Web 层（控制器、中间件）
+  Cjora.SaaS.Core/          规则与抽象：多租户、数据权限契约、SqlSugar 管道、仓储
+  Cjora.SaaS.Caching/       缓存基础设施：ICachingService / ILockService / IGeoService / IHashMapService
+  Cjora.SaaS.Logging/       请求日志中间件：结构化日志 + 统一异常响应 + IRequestLogEnricher 扩展
+  Cjora.SaaS.Sys/           IAM 业务层：用户、角色、部门、权限码、字典、数据权限解析
+  Cjora.SaaS.Sys.Web/       HTTP 层：Controller、JWT、PermCode 功能权限
+  Cjora.SaaS.Sys.Api/       生产宿主（仅 IAM，不含业务模块）
 /samples
-  Cjora.SaaS.Host.Sample/   示例宿主（可选 CRM/PM 扩展演示）
-  Cjora.SaaS.Crm/           客户域 Provider（可 dotnet pack）
-  Cjora.SaaS.Pm/            项目域 Provider（可 dotnet pack）
+  Cjora.SaaS.Host.Sample/   示例宿主（可按开关加载 CRM/PM 数据权限扩展）
+  Cjora.SaaS.Crm/           客户域 DataPermission Provider（可 dotnet pack 独立分发）
+  Cjora.SaaS.Pm/            项目域 DataPermission Provider（可 dotnet pack 独立分发）
 ```
 
-| 项目 | 说明 |
-|------|------|
-| [Cjora.SaaS.Core](src/Cjora.SaaS.Core/README.md) | 多租户、软删除、数据权限契约、`ISqlSugarDataPermissionFilterProvider`、QueryFilter 编排 |
-| **Cjora.SaaS.Caching** | 缓存抽象与 Memory / Redis 双实现（零依赖 Core） |
-| [Cjora.SaaS.Sys](src/Cjora.SaaS.Sys/README.md) | IAM 业务：部门域行级过滤 Provider、权限缓存、版本号失效 |
-| [Cjora.SaaS.Crm](samples/Cjora.SaaS.Crm/README.md) | 客户域实体 + Customer 范围 Provider |
-| [Cjora.SaaS.Pm](samples/Cjora.SaaS.Pm/README.md) | 项目域实体 + Project 范围 Provider |
-| **Cjora.SaaS.Sys.Api** | 生产宿主：Core + Caching + Sys |
-| **Cjora.SaaS.Host.Sample** | 示例宿主：Core + Caching + Sys + CRM + PM |
+---
 
-## 缓存能力（Cjora.SaaS.Caching）
+## 项目一览
 
-独立项目，**不依赖 Core**。提供四类缓存抽象与 Memory / Redis 双实现：
+| 项目 | 层次 | 依赖 | 主要职责 |
+|------|------|------|---------|
+| [Core](src/Cjora.SaaS.Core/README.md) | 规则层 | SqlSugar | 多租户、软删除、数据权限契约、QueryFilter 管道 |
+| [Caching](src/Cjora.SaaS.Caching/README.md) | 基础设施 | StackExchange.Redis | 键值缓存、分布式锁、GEO、Hash，独立于 Core |
+| [Logging](src/Cjora.SaaS.Logging/README.md) | 基础设施 | ASP.NET Core | 请求结构化日志、未处理异常 JSON 响应，独立于 Core |
+| [Sys](src/Cjora.SaaS.Sys/README.md) | 业务层 | Core + Caching + Logging | IAM 业务，实现 Core 所有可插拔接口 |
+| [Sys.Web](src/Cjora.SaaS.Sys.Web/README.md) | HTTP 层 | Sys | Controller、JWT 签发、PermCode 鉴权 |
+| [Sys.Api](src/Cjora.SaaS.Sys.Api/README.md) | 生产宿主 | Sys + Sys.Web + Caching + Logging | 纯 IAM 服务，无业务模块 |
+| [Host.Sample](samples/Cjora.SaaS.Host.Sample/README.md) | 示例宿主 | Sys + CRM + PM | 框架扩展演示，不用于生产 |
+| [Crm](samples/Cjora.SaaS.Crm/README.md) | 业务模块 | Core | 客户域 Provider（DataScopeKind.Customer） |
+| [Pm](samples/Cjora.SaaS.Pm/README.md) | 业务模块 | Core | 项目域 Provider（DataScopeKind.Project） |
 
-| 抽象 | Memory 实现 | Redis 实现 | 说明 |
-|------|------------|------------|------|
-| `ICachingService` | `MemoryCacheService` | `RedisCacheService` | 键值缓存（STRING） |
-| `ILockService` | `MemoryLockService` | `RedisLockService` | 分布式锁（SET NX PX + Lua） |
-| `IGeoService` | `MemoryGeoService` | `RedisGeoService` | Geo 空间搜索（GEOADD / GEORADIUS） |
-| `IHashMapService` | `MemoryHashMapService` | `RedisHashMapService` | Hash 字典结构（HSET / HGET / HDEL） |
+---
 
-### 接入方式
+## 数据权限机制（核心设计）
 
-在 `Program.cs` 调用：
+数据权限由 **DataScopeKind 枚举** 描述，分两层叠加生效：
 
-```csharp
-builder.Services.AddCjoraCaching(builder.Configuration);
+```
+租户过滤（ITenantScopedEntity）           — 所有查询强制带 tenant_id
+    ↓ AND
+行级过滤（ISqlSugarDataPermissionFilterProvider）  — 各业务模块注册，处理指定 DataScope
+    ↓ AND
+Self 过滤（ICreatorOwnedEntity）          — DataScopeKind.Self 时追加创建人条件
 ```
 
-在 `appsettings.json` 切换提供者：
+| DataScopeKind | 含义 | 需要哪个 Provider |
+|---------------|------|-----------------|
+| `All / Tenant` | 租户内全量 | 无（不追加行级条件） |
+| `Department` | 可访问部门树 | `SysSqlSugarDataPermissionFilterProvider`（Sys 提供） |
+| `Self` | 仅本人创建 | Core 内置 `ICreatorOwnedEntity` 过滤器 |
+| `Customer` | 仅本人创建的客户及子资源 | `CrmSqlSugarDataPermissionFilterProvider`（Crm 提供） |
+| `Project` | 仅本人参与的项目及子资源 | `PmSqlSugarDataPermissionFilterProvider`（Pm 提供） |
+
+如果用户 JWT 的 `data_scope` 声明了某个 Scope，但对应 Provider 未注册，Core 在创建 SqlSugar Client 时**立即 Fail-Fast**。
+
+---
+
+## 缓存（Cjora.SaaS.Caching）
+
+独立项目，不依赖 Core/Sys。提供四类抽象与 Memory / Redis 双实现：
+
+| 抽象 | Memory 实现 | Redis 实现 |
+|------|-------------|------------|
+| `ICachingService` | `MemoryCacheService` | `RedisCacheService` |
+| `ILockService` | `MemoryLockService`（进程内） | `RedisLockService`（SET NX PX + Lua） |
+| `IGeoService` | `MemoryGeoService`（Haversine） | `RedisGeoService`（GEOADD / GEORADIUS） |
+| `IHashMapService` | `MemoryHashMapService` | `RedisHashMapService` |
+
+**配置切换**（`appsettings.json`）：
 
 ```json
 "Cache": {
   "Provider": "Memory",
   "DefaultExpireMinutes": 7,
-  "Redis": {
-    "Configuration": "localhost:6379",
-    "Database": 0
-  }
+  "Redis": { "Configuration": "localhost:6379", "Database": 0 }
 }
 ```
 
-- `Provider=Memory`（默认）：单机运行，无需 Redis。
-- `Provider=Redis`：多实例共享，缓存可跨进程。
+**多实例部署必须使用 `Provider=Redis`**，Memory 实现不跨进程共享。
 
-### Key 规范
+---
 
-`SaaSCacheKeys` 工厂生成统一格式 Key：
+## 请求日志（Cjora.SaaS.Logging）
+
+独立项目，不依赖 Core/Sys。每个请求输出一条结构化日志：
 
 ```
-saas:{module}:ver:{kind}:{tenantId}         版本号（分布式失效）
-saas:{module}:{type}:user:{tenantId}:{userId}:v{version}  用户维度
-saas:{module}:dept:closure:{tenantId}:{rootId}:v{version}  部门闭包
-saas:{module}:lock:{kind}:{id}              分布式锁
+TraceId / Method / Path / StatusCode / ElapsedMs / UserId / TenantId
 ```
 
-## 选择性启用 CRM / PM
+通过 `IRequestLogEnricher` 扩展：Sys 已注册 `DataPermissionRequestLogEnricher`，额外输出 `DataScope / BypassRowLevelFilters`。  
+未处理异常返回统一 JSON：`{ success: false, error: "unhandled", traceId, message }`。
 
-在 `appsettings.json`（仅 `Host.Sample` 使用）：
+---
 
-```json
-"Modules": {
-  "EnableCrmDataPermission": false,
-  "EnablePmDataPermission": false
-}
+## 快速启动
+
+```bash
+# 生产宿主（仅 IAM）
+dotnet run --project src/Cjora.SaaS.Sys.Api
+
+# 示例宿主（含 CRM + PM 演示）
+dotnet run --project samples/Cjora.SaaS.Host.Sample
 ```
 
-- `true` → 注册对应 Provider + `CodeFirst.InitTables`。
-- `false` → **不得**为用户颁发 `data_scope = 4 (Project)` / `5 (Customer)`，否则 Fail-Fast。
+最小化接入清单（新业务模块接入 Department 数据权限示例）：
 
-**最小可运行组合**：
+```csharp
+// 1. 实体标记接口
+public class MyEntity : ITenantScopedEntity, IDepartmentScopedEntity { ... }
 
-- **仅 IAM**：两开关均 `false`；只需 Core + Caching + Sys。
-- **IAM + PM**：`EnablePmDataPermission: true`。
-- **全量**：两开关均 `true`。
+// 2. 模块使用 Sys 已有的 SysSqlSugarDataPermissionFilterProvider
+//    不需要额外注册（Sys 已覆盖 Department Scope）
+
+// 3. Program.cs
+builder.Services.AddCjoraSaaSWithSqlSugar(...);
+builder.Services.AddCjoraSaaSSys();
+builder.Services.AddCjoraCaching(builder.Configuration);
+builder.Services.AddCjoraLogging(o => o.IncludeExceptionDetail = env.IsDevelopment());
+```
+
+---
 
 ## 文档索引
 
 | 文档 | 内容 |
 |------|------|
-| [Cjora.SaaS.Core/README.md](src/Cjora.SaaS.Core/README.md) | DataScope 全表、插件机制、执行链路 |
-| [Cjora.SaaS.Sys/README.md](src/Cjora.SaaS.Sys/README.md) | IAM 边界、功能权限 vs 数据权限 |
-| [Cjora.SaaS.Crm/README.md](samples/Cjora.SaaS.Crm/README.md) | 客户模型、Customer 范围、接入方式 |
-| [Cjora.SaaS.Pm/README.md](samples/Cjora.SaaS.Pm/README.md) | 项目模型、EXISTS 形态、IProjectScopedEntity |
+| [Core/README.md](src/Cjora.SaaS.Core/README.md) | QueryFilter 顺序、Provider 插件机制、仓储边界 |
+| [Caching/README.md](src/Cjora.SaaS.Caching/README.md) | 四类缓存抽象、Key 规范、Memory vs Redis 选择 |
+| [Logging/README.md](src/Cjora.SaaS.Logging/README.md) | 中间件字段、IRequestLogEnricher 扩展 |
+| [Sys/README.md](src/Cjora.SaaS.Sys/README.md) | 数据权限解析链、缓存版本失效、Department 过滤 |
+| [Sys.Web/README.md](src/Cjora.SaaS.Sys.Web/README.md) | Controller 列表、PermCode 功能权限、JWT 配置 |
+| [Sys.Api/README.md](src/Cjora.SaaS.Sys.Api/README.md) | 生产宿主配置、管道顺序、curl 示例 |
+| [Host.Sample/README.md](samples/Cjora.SaaS.Host.Sample/README.md) | 按开关启用 CRM/PM、示例测试用途 |
+| [Crm/README.md](samples/Cjora.SaaS.Crm/README.md) | 客户域 Provider 实现参考 |
+| [Pm/README.md](samples/Cjora.SaaS.Pm/README.md) | 项目域 Provider 实现参考 |
