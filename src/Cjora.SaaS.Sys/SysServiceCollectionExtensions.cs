@@ -3,13 +3,11 @@ using Cjora.SaaS.Core.DataPermission.Models;
 using Cjora.SaaS.Core.MultiTenancy.Hosting;
 using Cjora.SaaS.Sys.Infrastructure.Caching;
 using Cjora.SaaS.Core.Repository.Hosting;
-using Cjora.SaaS.Core.SqlSugar.Abstractions;
 using Cjora.SaaS.Sys.Application.Departments;
 using Cjora.SaaS.Sys.Application.Dicts;
 using Cjora.SaaS.Sys.Application.Permissions;
 using Cjora.SaaS.Sys.Application.Roles;
 using Cjora.SaaS.Sys.Application.Users;
-using Cjora.SaaS.Sys.DataPermission;
 using Cjora.SaaS.Sys.MultiTenancy;
 using Cjora.SaaS.Sys.Departments;
 using Cjora.SaaS.Sys.Entities;
@@ -53,7 +51,7 @@ public static class SysServiceCollectionExtensions
         services.AddScoped<ISysSecurityCacheControl, SysSecurityCacheControl>();
 
         services.ReplaceTenantStorageRoutingProvider<SysTenantTableStorageRoutingProvider>();
-        services.AddScoped<ISqlSugarDataPermissionFilterProvider, SysSqlSugarDataPermissionFilterProvider>();
+        services.AddScoped<IDataScopeIdResolver, DepartmentDataScopeIdResolver>();
 
         services.AddScoped<ISysTenantRepository, SysTenantRepository>();
 

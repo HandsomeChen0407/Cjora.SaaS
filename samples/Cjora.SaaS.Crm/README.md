@@ -3,7 +3,7 @@
 ## 模块职责
 
 演示如何扩展 Core 框架，为 **CRM 客户域**（`DataScopeKind.Customer`）实现行级数据权限。  
-本项目是业务模块实现 `ISqlSugarDataPermissionFilterProvider` 的参考范例，不包含完整 CRM 业务逻辑。
+本项目是业务模块实现 `IDataScopeIdResolver` 的参考范例，不包含完整 CRM 业务逻辑。
 
 ---
 
@@ -12,7 +12,7 @@
 | 负责 | 不负责 |
 |------|--------|
 | `ICustomerScopedEntity` 标记接口（供实体实现） | 客户 CRUD 业务接口 |
-| `CrmSqlSugarDataPermissionFilterProvider`（Customer 行级过滤） | 用户、角色、权限等 IAM 功能 |
+| `CustomerDataScopeIdResolver`（Customer 行级过滤） | 用户、角色、权限等 IAM 功能 |
 | `AddCjoraSaaSCrmDataPermission()` DI 注册入口 | 缓存、日志基础设施 |
 | 示例实体（`CrmCustomer`、`CrmCustomerContact`、`CrmCustomerFollow`） | 完整的 CRM 产品功能 |
 
@@ -24,7 +24,7 @@
 
 ```
 Cjora.SaaS.Crm
-  → 依赖 Cjora.SaaS.Core（ISqlSugarDataPermissionFilterProvider 接口）
+  → 依赖 Cjora.SaaS.Core（IDataScopeIdResolver 接口）
   ← 被 Host.Sample 按需引用（EnableCrmDataPermission=true 时）
 ```
 
@@ -32,7 +32,7 @@ Cjora.SaaS.Crm
 
 ## 核心能力
 
-### `CrmSqlSugarDataPermissionFilterProvider`
+### `CustomerDataScopeIdResolver`
 
 - 处理 `DataScopeKind.Customer`
 - 对所有实现 `ICustomerScopedEntity` 的表追加 EXISTS 子查询：

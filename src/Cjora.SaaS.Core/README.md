@@ -5,7 +5,7 @@
 Core 是**规则层**，只做两件事：
 
 1. 定义契约（接口、枚举、抽象类）
-2. 将这些契约组装为 SqlSugar 全局 QueryFilter 管道
+2. 将这些契约组装为 SqlSugar 全局 QueryFilter 管道（仅租户 + 软删除）
 
 Core **不包含**：业务表实体、IAM/CRM/PM 业务逻辑、缓存实现、日志框架、Redis 等任何第三方基础设施。
 
@@ -16,7 +16,7 @@ Core **不包含**：业务表实体、IAM/CRM/PM 业务逻辑、缓存实现、
 | 负责 | 不负责 |
 |------|--------|
 | 多租户识别与存储路由契约 | 租户数据在哪个库（由宿主配置） |
-| 软删除 / 租户 / 数据权限 QueryFilter 注册 | 行级 SQL 的具体形态（EXISTS / JOIN） |
+| 软删除 / 租户 QueryFilter 注册 | 行级数据权限 SQL 形态（由服务层 .WithDataPermission() 处理） |
 | `IDataPermissionContext` 的消费（过滤器侧） | `IDataPermissionContext` 的解析（由 Sys 实现） |
 | `IRepository<T>` 抽象 | 仓储的 ORM 实现 |
 | SqlSugar 字段加密 / Hash AOP | 加密算法选型 |
@@ -68,9 +68,9 @@ Core 不引用 Sys、Caching、Logging、Crm、Pm 中的任何程序集。
 ```
 1. ISoftDeleteEntity   → WHERE !is_deleted
 2. ITenantScopedEntity → WHERE tenant_id = @current
-3. 各 ISqlSugarDataPermissionFilterProvider.Apply() → 业务 EXISTS/子查询
-4. ICreatorOwnedEntity → WHERE creator_user_id = @me（仅 DataScopeKind.Self）
 ```
+
+行级数据权限（部门/项目/客户/本人）不再通过 QueryFilter，而是由服务层显式调用 `.WithDataPermission(ctx)` 扩展方法附加。
 
 - `ISqlSugarClientFactory`：并发场景（Task.WhenAll）下创建相互隔离的 Client 实例
 - `ISqlSugarClientGuard`：检测同一 Client 被并发复用时抛出（AsyncLocal 实现）
@@ -133,16 +133,11 @@ using (_dataPermissionScope.Disable())
     var all = await _repo.GetListAsync(ct);
 }
 
-// 微服务场景：通过 IDataPermissionProvider 获取结构化权限数据（不依赖 SqlSugar）
-var grant = await _provider.GetGrantAsync(dataPermissionContext, ct);
-if (grant.IsFullAccess)
-{
-    // 不追加额外过滤
-}
-else if (grant.Scope == DataScopeKind.Department)
-{
-    // 自行拼接 WHERE dept_id IN (grant.AccessibleDepartmentIds)
-}
+// 服务层显式附加数据权限过滤（推荐）：
+var list = await _db.Queryable<SysDepartmentScopedSetting>()
+    .WithDataPermission(_dataPermissionContext)
+    .Where(s => s.IsActive)
+    .ToListAsync(ct);
 ```
 
 ---

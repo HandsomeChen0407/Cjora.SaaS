@@ -47,7 +47,7 @@
 ```
 租户过滤（ITenantScopedEntity）           — 所有查询强制带 tenant_id
     ↓ AND
-行级过滤（ISqlSugarDataPermissionFilterProvider）  — 各业务模块注册，处理指定 DataScope
+行级过滤（IDataScopeIdResolver）  — 各业务模块注册，处理指定 DataScope
     ↓ AND
 Self 过滤（ICreatorOwnedEntity）          — DataScopeKind.Self 时追加创建人条件
 ```
@@ -55,7 +55,7 @@ Self 过滤（ICreatorOwnedEntity）          — DataScopeKind.Self 时追加�
 **路径 B：结构化数据返回（微服务 / 其他 ORM）**
 
 ```
-IDataPermissionContext → IDataPermissionProvider → DataPermissionGrant
+IDataPermissionContext → IDataScopeIdResolver → DataPermissionResult
     → 返回部门 Id 列表 / 项目 Id 列表 / 是否全量等结构化数据
     → 消费方自行转化为 WHERE 条件、API 过滤或其他形态
 ```
@@ -63,10 +63,10 @@ IDataPermissionContext → IDataPermissionProvider → DataPermissionGrant
 | DataScopeKind | 含义 | 需要哪个 Provider |
 |---------------|------|-----------------|
 | `All / Tenant` | 租户内全量 | 无（不追加行级条件） |
-| `Department` | 可访问部门树 | `SysSqlSugarDataPermissionFilterProvider`（Sys 提供） |
+| `Department` | 可访问部门树 | `DepartmentDataScopeIdResolver`（Sys 提供） |
 | `Self` | 仅本人创建 | Core 内置 `ICreatorOwnedEntity` 过滤器 |
-| `Customer` | 仅本人创建的客户及子资源 | `CrmSqlSugarDataPermissionFilterProvider`（Crm 提供） |
-| `Project` | 仅本人参与的项目及子资源 | `PmSqlSugarDataPermissionFilterProvider`（Pm 提供） |
+| `Customer` | 仅本人创建的客户及子资源 | `CustomerDataScopeIdResolver`（Crm 提供） |
+| `Project` | 仅本人参与的项目及子资源 | `ProjectDataScopeIdResolver`（Pm 提供） |
 
 如果用户 JWT 的 `data_scope` 声明了某个 Scope，但对应 Provider 未注册，Core 在创建 SqlSugar Client 时**立即 Fail-Fast**。
 
@@ -129,7 +129,7 @@ dotnet run --project samples/Cjora.SaaS.Host.Sample
 // 1. 实体标记接口
 public class MyEntity : ITenantScopedEntity, IDepartmentScopedEntity { ... }
 
-// 2. 模块使用 Sys 已有的 SysSqlSugarDataPermissionFilterProvider
+// 2. 模块使用 Sys 已有的 DepartmentDataScopeIdResolver
 //    不需要额外注册（Sys 已覆盖 Department Scope）
 
 // 3. Program.cs

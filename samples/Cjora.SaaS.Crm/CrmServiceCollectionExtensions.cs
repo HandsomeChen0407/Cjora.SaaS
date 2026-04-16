@@ -1,4 +1,4 @@
-using Cjora.SaaS.Core.SqlSugar.Abstractions;
+using Cjora.SaaS.Core.DataPermission.Abstractions;
 using Cjora.SaaS.Crm.DataPermission;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -10,15 +10,15 @@ namespace Cjora.SaaS.Crm;
 public static class CrmServiceCollectionExtensions
 {
     /// <summary>
-    /// 注册 CRM 客户域 SqlSugar 行级过滤器。
+    /// 注册 CRM 客户域数据权限 Id 解析器。
     /// </summary>
     /// <remarks>
-    /// 未调用本方法时，宿主不得为用户颁发 <c>data_scope</c> = <see cref="Cjora.SaaS.Core.DataPermission.Enums.DataScopeKind.Customer"/>，
-    /// 否则创建 SqlSugar 客户端时将 Fail-Fast。
+    /// 未调用本方法时，<see cref="Cjora.SaaS.Core.DataPermission.Enums.DataScopeKind.Customer"/> 范围下
+    /// 可访问客户 Id 列表为空，<c>.WithDataPermission()</c> 将返回零行。
     /// </remarks>
     public static IServiceCollection AddCjoraSaaSCrmDataPermission(this IServiceCollection services)
     {
-        services.AddScoped<ISqlSugarDataPermissionFilterProvider, CrmSqlSugarDataPermissionFilterProvider>();
+        services.AddScoped<IDataScopeIdResolver, CustomerDataScopeIdResolver>();
         return services;
     }
 }

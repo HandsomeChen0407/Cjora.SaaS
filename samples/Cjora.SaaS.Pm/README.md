@@ -3,7 +3,7 @@
 ## 模块职责
 
 演示如何扩展 Core 框架，为 **PM 项目域**（`DataScopeKind.Project`）实现行级数据权限。  
-本项目是业务模块实现 `ISqlSugarDataPermissionFilterProvider` 的参考范例，不包含完整 PM 业务逻辑。
+本项目是业务模块实现 `IDataScopeIdResolver` 的参考范例，不包含完整 PM 业务逻辑。
 
 ---
 
@@ -12,7 +12,7 @@
 | 负责 | 不负责 |
 |------|--------|
 | `IProjectScopedEntity` 标记接口（供实体实现） | 项目 CRUD 业务接口 |
-| `PmSqlSugarDataPermissionFilterProvider`（Project 行级过滤） | 用户、角色、权限等 IAM 功能 |
+| `ProjectDataScopeIdResolver`（Project 行级过滤） | 用户、角色、权限等 IAM 功能 |
 | `AddCjoraSaaSPmDataPermission()` DI 注册入口 | 缓存、日志基础设施 |
 | 示例实体（`PmProject`、`PmProjectMember`、`PmProjectContract`） | 完整的 PM 产品功能 |
 
@@ -24,7 +24,7 @@
 
 ```
 Cjora.SaaS.Pm
-  → 依赖 Cjora.SaaS.Core（ISqlSugarDataPermissionFilterProvider 接口）
+  → 依赖 Cjora.SaaS.Core（IDataScopeIdResolver 接口）
   ← 被 Host.Sample 按需引用（EnablePmDataPermission=true 时）
 ```
 
@@ -32,7 +32,7 @@ Cjora.SaaS.Pm
 
 ## 核心能力
 
-### `PmSqlSugarDataPermissionFilterProvider`
+### `ProjectDataScopeIdResolver`
 
 - 处理 `DataScopeKind.Project`
 - 对所有实现 `IProjectScopedEntity` 的表追加 EXISTS 子查询：

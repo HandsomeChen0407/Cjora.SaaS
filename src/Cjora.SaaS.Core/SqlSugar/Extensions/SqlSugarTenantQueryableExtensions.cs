@@ -1,4 +1,3 @@
-using Cjora.SaaS.Core.DataPermission.Abstractions;
 using Cjora.SaaS.Core.Auth.Abstractions;
 using Cjora.SaaS.Core.Diagnostics;
 using Cjora.SaaS.Core.Repository.Abstractions;
@@ -7,15 +6,11 @@ using SqlSugar;
 namespace Cjora.SaaS.Core.SqlSugar.Extensions;
 
 /// <summary>
-/// 在单次查询链上临时移除全局过滤器（管理员跨租户/跨部门运维场景）。
+/// 在单次查询链上临时移除全局过滤器（管理员跨租户运维场景）。
 /// </summary>
 /// <remarks>
-/// <para>
-/// SqlSugar 在 5.1.3.47+ 支持按接口类型清除过滤器；与 Scoped 客户端上注册的接口过滤器一一对应。
-/// </para>
-/// <para>
-/// <b>安全提示</b>：调用这些方法后 SQL 将不再自动带 <c>TenantId</c> 等条件，务必在上层自行校验调用方具备平台级权限。
-/// </para>
+/// <para>全局 QueryFilter 仅包含租户隔离和软删除；行级数据权限由 <c>.WithDataPermission()</c> 显式处理。</para>
+/// <para><b>安全提示</b>：调用这些方法后 SQL 将不再自动带 <c>TenantId</c> 等条件，务必在上层自行校验调用方具备平台级权限。</para>
 /// </remarks>
 public static class SqlSugarTenantQueryableExtensions
 {
@@ -25,7 +20,6 @@ public static class SqlSugarTenantQueryableExtensions
     public static ISugarQueryable<TEntity> ClearTenantFilters<TEntity>(this ISugarQueryable<TEntity> queryable)
         where TEntity : class, new()
     {
-        // P0 Hardening: 禁止无鉴权上下文清除租户过滤器。
         throw new UnauthorizedAccessException(
             "ClearTenantFilters is restricted. Use ClearTenantFilters(queryable, currentUser) and ensure currentUser.IsSuperAdmin.");
     }
@@ -48,23 +42,6 @@ public static class SqlSugarTenantQueryableExtensions
     }
 
     /// <summary>
-    /// 移除部门/本人数据权限过滤器，保留租户过滤器（框架内部：仅允许超级管理员）。
-    /// </summary>
-    internal static ISugarQueryable<TEntity> ClearDataPermissionFiltersInternal<TEntity>(
-        this ISugarQueryable<TEntity> queryable,
-        ICurrentUser currentUser)
-        where TEntity : class, new()
-    {
-        if (!currentUser.IsSuperAdmin)
-        {
-            throw new UnauthorizedAccessException("Forbidden to clear SaaS filters.");
-        }
-
-        SecurityAuditEventSource.Log.ClearTenantFilters(currentUser.UserId, currentUser.TenantId);
-        return queryable.ClearFilter<IDepartmentScopedEntity, ICreatorOwnedEntity>();
-    }
-
-    /// <summary>
     /// 在单次查询链上跳过软删除全局过滤器（可查询已逻辑删除的行），仅允许超级管理员。
     /// </summary>
     public static ISugarQueryable<TEntity> ClearSoftDeleteFilter<TEntity>(
@@ -82,7 +59,7 @@ public static class SqlSugarTenantQueryableExtensions
     }
 
     /// <summary>
-    /// 移除本库注册的 SaaS 相关全部全局过滤器（租户 + 数据权限 + 软删除）（框架内部：仅允许超级管理员）。
+    /// 移除本库注册的全部全局过滤器（租户 + 软删除）（框架内部：仅允许超级管理员）。
     /// </summary>
     internal static ISugarQueryable<TEntity> ClearAllSaaSFiltersInternal<TEntity>(
         this ISugarQueryable<TEntity> queryable,
@@ -97,7 +74,6 @@ public static class SqlSugarTenantQueryableExtensions
         SecurityAuditEventSource.Log.ClearTenantFilters(currentUser.UserId, currentUser.TenantId);
         return queryable
             .ClearFilter<ISoftDeleteEntity>()
-            .ClearFilter<ITenantScopedEntity, IDepartmentScopedEntity, ICreatorOwnedEntity>();
+            .ClearFilter<ITenantScopedEntity>();
     }
 }
-

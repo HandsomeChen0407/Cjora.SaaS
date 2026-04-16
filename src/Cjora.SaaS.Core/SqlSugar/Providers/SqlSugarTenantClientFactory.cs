@@ -2,21 +2,16 @@ using Cjora.SaaS.Core.MultiTenancy.Abstractions;
 using Cjora.SaaS.Core.MultiTenancy.Models;
 using Cjora.SaaS.Core.SqlSugar.Abstractions;
 using Cjora.SaaS.Core.SqlSugar.Models;
-using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using SqlSugar;
-using System.Linq;
 
 namespace Cjora.SaaS.Core.SqlSugar.Providers;
 
 /// <summary>
 /// 按当前 <see cref="ITenantProvider"/> 与 <see cref="ITenantStorageRoutingProvider"/> 创建 Scoped <see cref="ISqlSugarClient"/>，
-/// 并配置全局过滤器与插入/更新 AOP。
+/// 并配置全局过滤器（租户 + 软删除）与插入/更新 AOP。
 /// </summary>
-/// <remarks>
-/// 扩展点：读写分离可通过替换/扩展 <see cref="ITenantStorageRoutingProvider"/> 在路由结果中返回不同连接串；本工厂不内置主从切换逻辑。
-/// </remarks>
 public static class SqlSugarTenantClientFactory
 {
     /// <summary>
@@ -35,7 +30,6 @@ public static class SqlSugarTenantClientFactory
         }
 
         var tenantId = tenantProvider.GetTenantId();
-        // 同步阻塞：必须 ConfigureAwait(false)，避免自定义路由解析中的 await 捕获同步上下文后与 GetResult 死锁。
         var route = routingProvider.ResolveAsync(tenantId, CancellationToken.None)
             .AsTask()
             .ConfigureAwait(false)
@@ -50,16 +44,7 @@ public static class SqlSugarTenantClientFactory
 
         var client = SqlSugarSaaSClientBuilder.Build(services, connectionString, options);
 
-        var http = services.GetService<IHttpContextAccessor>();
-        if (http?.HttpContext is not null)
-        {
-            var providerNames = string.Join(
-                ",",
-                services.GetServices<ISqlSugarDataPermissionFilterProvider>().Select(static p => p.GetType().Name));
-            http.HttpContext.Items["Cjora.DataPermissionFilterProviders"] = providerNames;
-        }
-
-        var guard = services.GetService<Cjora.SaaS.Core.SqlSugar.Abstractions.ISqlSugarClientGuard>();
+        var guard = services.GetService<ISqlSugarClientGuard>();
         return guard is null ? client : GuardedDispatchProxy<ISqlSugarClient>.Create(client, guard);
     }
 }

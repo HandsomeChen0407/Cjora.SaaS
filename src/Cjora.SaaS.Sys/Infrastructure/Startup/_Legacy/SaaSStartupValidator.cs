@@ -1,10 +1,6 @@
-using Cjora.SaaS.Core.Auth.Abstractions;
-using Cjora.SaaS.Core.MultiTenancy.Abstractions;
-using Cjora.SaaS.Core.MultiTenancy.Models;
-using Cjora.SaaS.Core.MultiTenancy.Providers;
 using Cjora.SaaS.Core.DataPermission.Abstractions;
+using Cjora.SaaS.Core.MultiTenancy.Abstractions;
 using Cjora.SaaS.Core.Repository.Abstractions;
-using Cjora.SaaS.Core.SqlSugar.Abstractions;
 using Cjora.SaaS.Core.SqlSugar.Models;
 using Cjora.SaaS.Sys.DataPermission.Entities;
 using Cjora.SaaS.Sys.Entities;
@@ -23,16 +19,16 @@ public static class SaaSStartupValidator
     {
         var logger = services.GetService<ILoggerFactory>()?.CreateLogger("SaaSStartupValidator");
 
-        // 1) DataPermission Provider 必须存在
-        var providers = services.GetServices<ISqlSugarDataPermissionFilterProvider>().ToArray();
-        if (providers.Length == 0)
+        // 1) IDataScopeIdResolver 至少注册了 Department
+        var resolvers = services.GetServices<IDataScopeIdResolver>().ToArray();
+        if (resolvers.Length == 0)
         {
             throw new InvalidOperationException(
-                "No DataPermissionFilterProvider registered. Department scope will not work.");
+                "No IDataScopeIdResolver registered. Department scope will not work.");
         }
-        LogOk(logger, "[OK] DataPermissionProvider registered");
+        LogOk(logger, $"[OK] IDataScopeIdResolver registered ({resolvers.Length} resolver(s))");
 
-        // 2) 默认租户回退：Core 已移除该语义（Fail-Fast），此处仅记录当前 tenant provider 类型。
+        // 2) 记录当前 tenant provider 类型。
         var tenantProvider = services.GetRequiredService<ITenantProvider>();
         LogOk(logger, $"[OK] TenantProvider={tenantProvider.GetType().Name}");
 
@@ -40,7 +36,6 @@ public static class SaaSStartupValidator
         var db = services.GetRequiredService<ISqlSugarClient>();
         DatabaseSchemaValidator.ValidateIndexes(db);
 
-        // 扫描所有 IDepartmentScopedEntity 表并验证 idx_tenant_dept
         var deptTables = FindDepartmentScopedTableNames();
         foreach (var t in deptTables)
         {
@@ -51,25 +46,18 @@ public static class SaaSStartupValidator
         }
         LogOk(logger, "[OK] Indexes verified");
 
-        // 4) 危险 API 封禁检查（反射验证：public 方法不存在）
+        // 4) 危险 API 封禁检查
         var extType = typeof(Cjora.SaaS.Core.SqlSugar.Extensions.SqlSugarTenantQueryableExtensions);
         EnsureNoPublicExtension(extType, "ClearAllSaaSFilters");
         EnsureNoPublicExtension(extType, "ClearDataPermissionFilters");
         LogOk(logger, "[OK] Dangerous APIs sealed");
 
-        // 5) QueryFilter 注入检查：Tenant Filter + DataPermission Filter（结构性验证）
-        // 通过 QueryFilterProvider 反射判断是否已注册过滤器类型
-        if (!HasFilterType(db, typeof(ITenantScopedEntity)))
+        // 5) 租户 QueryFilter 验证（数据权限 QueryFilter 已移除，仅验证租户）
+        if (!HasTenantFilter(db))
         {
-            throw new InvalidOperationException("QueryFilters are not correctly configured.");
+            throw new InvalidOperationException("Tenant QueryFilter is not correctly configured.");
         }
-
-        if (!HasFilterType(db, typeof(IDepartmentScopedEntity)) && providers.Length > 0)
-        {
-            throw new InvalidOperationException("QueryFilters are not correctly configured.");
-        }
-
-        LogOk(logger, "[OK] QueryFilters active");
+        LogOk(logger, "[OK] Tenant QueryFilter active");
 
         // 6) 生产环境禁止 SQLite
         var env = services.GetService<IHostEnvironment>();
@@ -129,45 +117,27 @@ public static class SaaSStartupValidator
         var list = db.DbMaintenance.GetIndexList(tableName);
         foreach (var item in list)
         {
-            if (item is null)
-            {
-                continue;
-            }
+            if (item is null) continue;
 
             if (item is string s)
             {
                 if (string.Equals(s, indexName, StringComparison.OrdinalIgnoreCase))
-                {
                     return true;
-                }
-
                 continue;
             }
 
             var prop = item.GetType().GetProperty("IndexName");
             var name = prop?.GetValue(item) as string;
             if (!string.IsNullOrWhiteSpace(name) && string.Equals(name, indexName, StringComparison.OrdinalIgnoreCase))
-            {
                 return true;
-            }
         }
 
         return false;
     }
 
-    private static bool HasFilterType(ISqlSugarClient db, Type interfaceType)
+    private static bool HasTenantFilter(ISqlSugarClient db)
     {
-        // Core 已封锁 QueryFilter 的外部访问，避免 Clear/Disable/绕过。
-        // 因此这里不能再通过 db.QueryFilter 反射验证；改为通过 SQL 生成形态进行最小自检。
-        if (interfaceType == typeof(Cjora.SaaS.Core.Repository.Abstractions.ITenantScopedEntity))
-        {
-            var sql = db.Queryable<Cjora.SaaS.Sys.Entities.SysDepartment>().ToSql().Key;
-            return sql.Contains("tenant_id", StringComparison.OrdinalIgnoreCase);
-        }
-
-        // 其他过滤器类型（部门/本人）在不同数据范围下 SQL 形态不固定，且由 Sys 提供 Provider，
-        // 此处不做脆弱的字符串断言。
-        return true;
+        var sql = db.Queryable<SysDepartment>().ToSql().Key;
+        return sql.Contains("tenant_id", StringComparison.OrdinalIgnoreCase);
     }
 }
-

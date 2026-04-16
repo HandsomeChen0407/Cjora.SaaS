@@ -1,4 +1,4 @@
-using Cjora.SaaS.Core.SqlSugar.Abstractions;
+using Cjora.SaaS.Core.DataPermission.Abstractions;
 using Cjora.SaaS.Pm.DataPermission;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -10,15 +10,15 @@ namespace Cjora.SaaS.Pm;
 public static class PmServiceCollectionExtensions
 {
     /// <summary>
-    /// 注册 PM 项目域 SqlSugar 行级过滤器。
+    /// 注册 PM 项目域数据权限 Id 解析器。
     /// </summary>
     /// <remarks>
-    /// 未调用本方法时，宿主不得为用户颁发 <c>data_scope</c> = <see cref="Cjora.SaaS.Core.DataPermission.Enums.DataScopeKind.Project"/>，
-    /// 否则创建 SqlSugar 客户端时将 Fail-Fast。
+    /// 未调用本方法时，<see cref="Cjora.SaaS.Core.DataPermission.Enums.DataScopeKind.Project"/> 范围下
+    /// 可访问项目 Id 列表为空，<c>.WithDataPermission()</c> 将返回零行。
     /// </remarks>
     public static IServiceCollection AddCjoraSaaSPmDataPermission(this IServiceCollection services)
     {
-        services.AddScoped<ISqlSugarDataPermissionFilterProvider, PmSqlSugarDataPermissionFilterProvider>();
+        services.AddScoped<IDataScopeIdResolver, ProjectDataScopeIdResolver>();
         return services;
     }
 }
