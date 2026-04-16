@@ -1,0 +1,81 @@
+using Cjora.SaaS.Sys.Api.Auth;
+using Cjora.SaaS.Sys.Api.Contracts.Common;
+using Cjora.SaaS.Sys.Api.Mapping;
+using Cjora.SaaS.Sys.Api.Models;
+using Cjora.SaaS.Sys.Entities;
+using Cjora.SaaS.Sys.Repositories;
+using Microsoft.AspNetCore.Mvc;
+
+namespace Cjora.SaaS.Sys.Api.Controllers;
+
+[ApiController]
+[Route("api/tenants")]
+public sealed class TenantsController : ControllerBase
+{
+    private readonly ISysTenantRepository _tenants;
+
+    public TenantsController(ISysTenantRepository tenants)
+    {
+        _tenants = tenants;
+    }
+
+    [HttpGet]
+    [AuthorizePermCode("sys:tenant:list")]
+    public async Task<ActionResult<Result<IReadOnlyList<SysTenantDto>>>> GetAll(CancellationToken cancellationToken)
+    {
+        var list = await _tenants.GetAllAsync(cancellationToken);
+        return Ok(Result<IReadOnlyList<SysTenantDto>>.Ok(list.Select(static t => t.ToDto()).ToArray()));
+    }
+
+    [HttpGet("{tenantCode}")]
+    [AuthorizePermCode("sys:tenant:detail")]
+    public async Task<ActionResult<Result<SysTenantDto>>> GetByTenantCode(string tenantCode, CancellationToken cancellationToken)
+    {
+        var t = await _tenants.GetByTenantCodeAsync(tenantCode, cancellationToken);
+        return t is null ? NotFound(Result<SysTenantDto>.Fail("NotFound")) : Ok(Result<SysTenantDto>.Ok(t.ToDto()));
+    }
+
+    [HttpPost]
+    [AuthorizePermCode("sys:tenant:create")]
+    public async Task<ActionResult<Result<SysTenantDto>>> Create([FromBody] SysTenantCreateRequest request, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(request.TenantCode) || string.IsNullOrWhiteSpace(request.Name))
+            return BadRequest(Result<SysTenantDto>.Fail("TenantCode 与 Name 必填。"));
+
+        var entity = new SysTenant
+        {
+            TenantCode = request.TenantCode.Trim(),
+            Name = request.Name.Trim(),
+            IsActive = request.IsActive,
+            DedicatedDatabaseConnectionString = string.IsNullOrWhiteSpace(request.DedicatedDatabaseConnectionString)
+                ? null : request.DedicatedDatabaseConnectionString.Trim(),
+            CreatedAtUtc = DateTime.UtcNow
+        };
+
+        await _tenants.InsertAsync(entity, cancellationToken);
+        return CreatedAtAction(
+            nameof(GetByTenantCode),
+            new { tenantCode = entity.TenantCode },
+            Result<SysTenantDto>.Ok(entity.ToDto()));
+    }
+
+    [HttpPut("{tenantCode}")]
+    [AuthorizePermCode("sys:tenant:update")]
+    public async Task<ActionResult<Result<SysTenantDto>>> Update(string tenantCode, [FromBody] SysTenantUpdateRequest request, CancellationToken cancellationToken)
+    {
+        var t = await _tenants.GetByTenantCodeAsync(tenantCode, cancellationToken);
+        if (t is null) return NotFound(Result<SysTenantDto>.Fail("NotFound"));
+
+        t.Name = string.IsNullOrWhiteSpace(request.Name) ? t.Name : request.Name.Trim();
+        t.IsActive = request.IsActive;
+        if (request.DedicatedDatabaseConnectionString is not null)
+        {
+            t.DedicatedDatabaseConnectionString = string.IsNullOrWhiteSpace(request.DedicatedDatabaseConnectionString)
+                ? null : request.DedicatedDatabaseConnectionString.Trim();
+        }
+
+        t.UpdatedAtUtc = DateTime.UtcNow;
+        await _tenants.UpdateAsync(t, cancellationToken);
+        return Ok(Result<SysTenantDto>.Ok(t.ToDto()));
+    }
+}

@@ -1,11 +1,21 @@
 <Solution>
-  <Folder Name="/解决方案项/">
+  <Folder Name="/doc/">
     <File Path=".gitattributes" />
     <File Path=".gitignore" />
     <File Path="LICENSE.txt" />
     <File Path="README.md" />
   </Folder>
-  <Project Path="Cjora.SaaS.Core/Cjora.SaaS.Core.csproj" />
-  <Project Path="Cjora.SaaS.Sys.Api/Cjora.SaaS.Sys.Api.csproj" />
-  <Project Path="Cjora.SaaS.Sys/Cjora.SaaS.Sys.csproj" />
+  <Folder Name="/samples/">
+    <Project Path="samples/Cjora.SaaS.Crm/Cjora.SaaS.Crm.csproj" />
+    <Project Path="samples/Cjora.SaaS.Host.Sample/Cjora.SaaS.Host.Sample.csproj" />
+    <Project Path="samples/Cjora.SaaS.Pm/Cjora.SaaS.Pm.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/Cjora.SaaS.Core/Cjora.SaaS.Core.csproj" />
+    <Project Path="src/Cjora.SaaS.Caching/Cjora.SaaS.Caching.csproj" />
+    <Project Path="src/Cjora.SaaS.Logging/Cjora.SaaS.Logging.csproj" />
+    <Project Path="src/Cjora.SaaS.Sys.Api/Cjora.SaaS.Sys.Api.csproj" />
+    <Project Path="src/Cjora.SaaS.Sys.Web/Cjora.SaaS.Sys.Web.csproj" />
+    <Project Path="src/Cjora.SaaS.Sys/Cjora.SaaS.Sys.csproj" />
+  </Folder>
 </Solution>
