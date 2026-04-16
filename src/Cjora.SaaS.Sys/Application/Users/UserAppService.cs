@@ -18,7 +18,7 @@ internal sealed class UserAppService : IUserAppService
     private readonly IRepository<SysRoleDataScope> _roleDataScopes;
     private readonly ISqlSugarClient _db;
     private readonly ITenantProvider _tenantProvider;
-    private readonly ISysSecurityMemoryCacheControl _securityCache;
+    private readonly ISysSecurityCacheControl _securityCache;
 
     public UserAppService(
         IUserRepository users,
@@ -27,7 +27,7 @@ internal sealed class UserAppService : IUserAppService
         IRepository<SysRoleDataScope> roleDataScopes,
         ISqlSugarClient db,
         ITenantProvider tenantProvider,
-        ISysSecurityMemoryCacheControl securityCache)
+        ISysSecurityCacheControl securityCache)
     {
         _users = users;
         _userRoles = userRoles;
@@ -146,8 +146,8 @@ internal sealed class UserAppService : IUserAppService
         }, cancellationToken);
 
         await RebuildUserDataScopeAsync(userId, cancellationToken);
-        _securityCache.InvalidatePermissionCaches();
-        _securityCache.InvalidateDataPermissionCaches();
+        await _securityCache.InvalidatePermissionCachesAsync(cancellationToken).ConfigureAwait(false);
+        await _securityCache.InvalidateDataPermissionCachesAsync(cancellationToken).ConfigureAwait(false);
         return true;
     }
 
@@ -157,8 +157,8 @@ internal sealed class UserAppService : IUserAppService
         if (n == 0) return false;
 
         await RebuildUserDataScopeAsync(userId, cancellationToken);
-        _securityCache.InvalidatePermissionCaches();
-        _securityCache.InvalidateDataPermissionCaches();
+        await _securityCache.InvalidatePermissionCachesAsync(cancellationToken).ConfigureAwait(false);
+        await _securityCache.InvalidateDataPermissionCachesAsync(cancellationToken).ConfigureAwait(false);
         return true;
     }
 

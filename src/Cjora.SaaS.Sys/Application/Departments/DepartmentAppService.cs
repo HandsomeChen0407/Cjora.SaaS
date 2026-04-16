@@ -12,12 +12,12 @@ internal sealed class DepartmentAppService : IDepartmentAppService
 {
     private readonly IRepository<SysDepartment> _departments;
     private readonly ISqlSugarClient _db;
-    private readonly ISysSecurityMemoryCacheControl _securityCache;
+    private readonly ISysSecurityCacheControl _securityCache;
 
     public DepartmentAppService(
         IRepository<SysDepartment> departments,
         ISqlSugarClient db,
-        ISysSecurityMemoryCacheControl securityCache)
+        ISysSecurityCacheControl securityCache)
     {
         _departments = departments;
         _db = db;
@@ -91,7 +91,7 @@ internal sealed class DepartmentAppService : IDepartmentAppService
 
         await _departments.InsertAsync(entity, cancellationToken);
         await RebuildClosureForNodeAsync(entity.Id, entity.ParentId, cancellationToken);
-        _securityCache.InvalidateDepartmentCaches();
+        await _securityCache.InvalidateDepartmentCachesAsync(cancellationToken).ConfigureAwait(false);
         return entity.Id;
     }
 
@@ -115,7 +115,7 @@ internal sealed class DepartmentAppService : IDepartmentAppService
         if (parentChanged)
         {
             await RebuildFullClosureTableAsync(cancellationToken);
-            _securityCache.InvalidateDepartmentCaches();
+            await _securityCache.InvalidateDepartmentCachesAsync(cancellationToken).ConfigureAwait(false);
         }
 
         return true;
@@ -136,7 +136,7 @@ internal sealed class DepartmentAppService : IDepartmentAppService
             .Where(c => c.AncestorId == id || c.DescendantId == id)
             .ExecuteCommandAsync(cancellationToken);
 
-        _securityCache.InvalidateDepartmentCaches();
+        await _securityCache.InvalidateDepartmentCachesAsync(cancellationToken).ConfigureAwait(false);
         return true;
     }
 

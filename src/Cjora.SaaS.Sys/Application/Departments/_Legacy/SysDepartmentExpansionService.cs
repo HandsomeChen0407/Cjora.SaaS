@@ -1,9 +1,10 @@
 using Cjora.SaaS.Core.MultiTenancy.Abstractions;
-using Cjora.SaaS.Core.Repository.Abstractions;
-using Cjora.SaaS.Sys.Entities;
+using Cjora.SaaS.Caching.Abstractions;
+using Cjora.SaaS.Caching.Models;
+using Cjora.SaaS.Sys.DataPermission.Entities;
 using Cjora.SaaS.Sys.Infrastructure.Caching;
-using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
+using SqlSugar;
 
 namespace Cjora.SaaS.Sys.Departments;
 
@@ -12,29 +13,33 @@ namespace Cjora.SaaS.Sys.Departments;
 /// </summary>
 public sealed class SysDepartmentExpansionService : ISysDepartmentExpansionService
 {
-    private readonly IRepository<SysDepartment> _departments;
+    private const string Module = "sys";
     private readonly SysDepartmentOptions _options;
-    private readonly IMemoryCache _cache;
+    private readonly ISqlSugarClient _db;
+    private readonly ICachingService _cache;
+    private readonly ILockService _lock;
     private readonly ITenantProvider _tenantProvider;
-    private readonly SysSecurityCacheGeneration _generation;
-    private readonly SysSecurityCacheOptions _cacheOptions;
+    private readonly SysSecurityCacheVersionStore _versions;
+    private readonly CacheOptions _cacheOptions;
 
     /// <summary>
     /// 初始化 <see cref="SysDepartmentExpansionService"/>。
     /// </summary>
     public SysDepartmentExpansionService(
-        IRepository<SysDepartment> departments,
         IOptions<SysDepartmentOptions> options,
-        IMemoryCache cache,
+        ISqlSugarClient db,
+        ICachingService cache,
+        ILockService @lock,
         ITenantProvider tenantProvider,
-        SysSecurityCacheGeneration generation,
-        IOptions<SysSecurityCacheOptions> cacheOptions)
+        SysSecurityCacheVersionStore versions,
+        IOptions<CacheOptions> cacheOptions)
     {
-        _departments = departments;
         _options = options.Value;
+        _db = db;
         _cache = cache;
+        _lock = @lock;
         _tenantProvider = tenantProvider;
-        _generation = generation;
+        _versions = versions;
         _cacheOptions = cacheOptions.Value;
     }
 
@@ -42,26 +47,65 @@ public sealed class SysDepartmentExpansionService : ISysDepartmentExpansionServi
     public async Task<IReadOnlyList<long>> ExpandWithDescendantsAsync(long rootDepartmentId, CancellationToken cancellationToken = default)
     {
         var tenantId = _tenantProvider.GetTenantId();
-        var gen = _generation.Department;
-        var cacheKey = $"cjora:dept-all:{tenantId}:{gen}";
-        if (!_cache.TryGetValue(cacheKey, out List<SysDepartment>? all))
+        var ver = await _versions.GetDepartmentVersionAsync(cancellationToken).ConfigureAwait(false);
+        var cacheKey = SaaSCacheKeys.DepartmentClosure(Module, tenantId, rootDepartmentId, ver);
+
+        var cached = await _cache.GetAsync<long[]>(cacheKey).ConfigureAwait(false);
+        if (cached is not null)
         {
-            all = await _departments.GetListAsync(cancellationToken);
-            _cache.Set(
-                cacheKey,
-                all,
-                new MemoryCacheEntryOptions
-                {
-                    AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(
-                        Math.Clamp(_cacheOptions.AbsoluteExpirationMinutes, 5, 10))
-                });
+            return cached;
         }
 
-        if (all!.Count > _options.MaxDepartmentNodes)
+        var lockKey = SaaSCacheKeys.Lock(Module, "dept-closure", $"{tenantId}:{rootDepartmentId}");
+        var handle = await _lock.TryAcquireAsync(lockKey, TimeSpan.FromSeconds(5), cancellationToken).ConfigureAwait(false);
+        if (handle is not null)
+        {
+            await using (handle.ConfigureAwait(false))
+            {
+                cached = await _cache.GetAsync<long[]>(cacheKey).ConfigureAwait(false);
+                if (cached is not null)
+                {
+                    return cached;
+                }
+
+                var listLocked = await _db.Queryable<SysDepartmentClosure>()
+                    .Where(c => c.TenantId == tenantId && c.AncestorId == rootDepartmentId)
+                    .Select(c => c.DescendantId)
+                    .ToListAsync(cancellationToken)
+                    .ConfigureAwait(false);
+
+                if (listLocked.Count > _options.MaxDepartmentNodes)
+                {
+                    throw new InvalidOperationException("Department tree too large. Use alternative model.");
+                }
+
+                var resultLocked = listLocked.Distinct().ToArray();
+                await _cache.SetAsync(
+                        cacheKey,
+                        resultLocked,
+                        TimeSpan.FromMinutes(Math.Clamp(_cacheOptions.DefaultExpireMinutes, 5, 10)))
+                    .ConfigureAwait(false);
+                return resultLocked;
+            }
+        }
+
+        var list = await _db.Queryable<SysDepartmentClosure>()
+            .Where(c => c.TenantId == tenantId && c.AncestorId == rootDepartmentId)
+            .Select(c => c.DescendantId)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        if (list.Count > _options.MaxDepartmentNodes)
         {
             throw new InvalidOperationException("Department tree too large. Use alternative model.");
         }
 
-        return SysDepartmentExpansion.ExpandWithDescendants(rootDepartmentId, all);
+        var result = list.Distinct().ToArray();
+        await _cache.SetAsync(
+                cacheKey,
+                result,
+                TimeSpan.FromMinutes(Math.Clamp(_cacheOptions.DefaultExpireMinutes, 5, 10)))
+            .ConfigureAwait(false);
+        return result;
     }
 }

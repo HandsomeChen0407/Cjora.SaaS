@@ -9,6 +9,7 @@ using Cjora.SaaS.Sys;
 using Cjora.SaaS.Sys.Api.Auth;
 using Cjora.SaaS.Sys.DataPermission.Entities;
 using Cjora.SaaS.Sys.Entities;
+using Cjora.SaaS.Caching.Hosting;
 using Cjora.SaaS.Sys.Repositories;
 using Cjora.SaaS.Sys.SqlSugar;
 using Cjora.SaaS.Sys.Web;
@@ -98,6 +99,8 @@ builder.Services.AddAuthorization(options =>
 builder.Services.AddSingleton<IAuthorizationPolicyProvider, PermCodePolicyProvider>();
 builder.Services.AddScoped<IAuthorizationHandler, PermCodeAuthorizationHandler>();
 builder.Services.AddScoped<JwtTokenService>();
+
+builder.Services.AddCjoraCaching(builder.Configuration);
 
 builder.Services.AddCjoraSaaSWithSqlSugar(
     configureTenant: o =>

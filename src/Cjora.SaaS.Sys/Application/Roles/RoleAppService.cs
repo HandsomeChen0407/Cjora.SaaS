@@ -17,7 +17,7 @@ internal sealed class RoleAppService : IRoleAppService
     private readonly IRepository<SysUserRole> _userRoles;
     private readonly ISqlSugarClient _db;
     private readonly ITenantProvider _tenantProvider;
-    private readonly ISysSecurityMemoryCacheControl _securityCache;
+    private readonly ISysSecurityCacheControl _securityCache;
 
     public RoleAppService(
         IRepository<SysRole> roles,
@@ -26,7 +26,7 @@ internal sealed class RoleAppService : IRoleAppService
         IRepository<SysUserRole> userRoles,
         ISqlSugarClient db,
         ITenantProvider tenantProvider,
-        ISysSecurityMemoryCacheControl securityCache)
+        ISysSecurityCacheControl securityCache)
     {
         _roles = roles;
         _rolePerms = rolePerms;
@@ -122,8 +122,8 @@ internal sealed class RoleAppService : IRoleAppService
             }
         }
 
-        _securityCache.InvalidatePermissionCaches();
-        _securityCache.InvalidateDataPermissionCaches();
+        await _securityCache.InvalidatePermissionCachesAsync(cancellationToken).ConfigureAwait(false);
+        await _securityCache.InvalidateDataPermissionCachesAsync(cancellationToken).ConfigureAwait(false);
         return entity.Id;
     }
 
@@ -177,8 +177,8 @@ internal sealed class RoleAppService : IRoleAppService
 
         await SyncUserDataScopesForRoleAsync(id, cancellationToken);
 
-        _securityCache.InvalidatePermissionCaches();
-        _securityCache.InvalidateDataPermissionCaches();
+        await _securityCache.InvalidatePermissionCachesAsync(cancellationToken).ConfigureAwait(false);
+        await _securityCache.InvalidateDataPermissionCachesAsync(cancellationToken).ConfigureAwait(false);
         return true;
     }
 
@@ -200,8 +200,8 @@ internal sealed class RoleAppService : IRoleAppService
             await RebuildUserDataScopeAsync(ur.UserId, cancellationToken);
         }
 
-        _securityCache.InvalidatePermissionCaches();
-        _securityCache.InvalidateDataPermissionCaches();
+        await _securityCache.InvalidatePermissionCachesAsync(cancellationToken).ConfigureAwait(false);
+        await _securityCache.InvalidateDataPermissionCachesAsync(cancellationToken).ConfigureAwait(false);
         return true;
     }
 

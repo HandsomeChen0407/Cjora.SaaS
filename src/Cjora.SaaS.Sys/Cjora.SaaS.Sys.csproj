@@ -20,6 +20,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Cjora.SaaS.Core\Cjora.SaaS.Core.csproj" />
+    <ProjectReference Include="..\Cjora.SaaS.Caching\Cjora.SaaS.Caching.csproj" />
   </ItemGroup>
 
 </Project>

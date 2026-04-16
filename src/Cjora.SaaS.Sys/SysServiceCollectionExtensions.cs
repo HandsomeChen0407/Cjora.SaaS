@@ -1,6 +1,7 @@
 using Cjora.SaaS.Core.DataPermission.Abstractions;
 using Cjora.SaaS.Core.DataPermission.Models;
 using Cjora.SaaS.Core.MultiTenancy.Hosting;
+using Cjora.SaaS.Sys.Infrastructure.Caching;
 using Cjora.SaaS.Core.Repository.Hosting;
 using Cjora.SaaS.Core.SqlSugar.Abstractions;
 using Cjora.SaaS.Sys.Application.Departments;
@@ -14,7 +15,6 @@ using Cjora.SaaS.Sys.Departments;
 using Cjora.SaaS.Sys.Entities;
 using Cjora.SaaS.Sys.Permissions;
 using Cjora.SaaS.Sys.Repositories;
-using Cjora.SaaS.Sys.Infrastructure.Caching;
 using Cjora.SaaS.Sys.Infrastructure.DataPermission;
 using Cjora.SaaS.Sys.Infrastructure.Repositories;
 using Microsoft.AspNetCore.Http.Timeouts;
@@ -42,13 +42,11 @@ public static class SysServiceCollectionExtensions
         services.AddOptions();
         services.Configure<SysDepartmentOptions>(_ => { });
 
-        services.AddMemoryCache();
         services.AddRequestTimeouts(static o =>
             o.DefaultPolicy = new RequestTimeoutPolicy { Timeout = TimeSpan.FromSeconds(30) });
 
-        services.AddSingleton<SysSecurityCacheGeneration>();
-        services.AddSingleton<ISysSecurityMemoryCacheControl, SysSecurityMemoryCacheControl>();
-        services.AddOptions<SysSecurityCacheOptions>().BindConfiguration(SysSecurityCacheOptions.SectionName);
+        services.AddScoped<SysSecurityCacheVersionStore>();
+        services.AddScoped<ISysSecurityCacheControl, SysSecurityCacheControl>();
 
         services.ReplaceTenantStorageRoutingProvider<SysTenantTableStorageRoutingProvider>();
         services.AddScoped<ISqlSugarDataPermissionFilterProvider, SysSqlSugarDataPermissionFilterProvider>();

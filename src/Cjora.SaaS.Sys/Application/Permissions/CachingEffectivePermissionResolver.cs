@@ -1,7 +1,8 @@
 using Cjora.SaaS.Core.Auth.Abstractions;
+using Cjora.SaaS.Caching.Abstractions;
+using Cjora.SaaS.Caching.Models;
 using Cjora.SaaS.Sys.Infrastructure.Caching;
 using Cjora.SaaS.Sys.Permissions;
-using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 
 namespace Cjora.SaaS.Sys.Application.Permissions;
@@ -11,23 +12,27 @@ namespace Cjora.SaaS.Sys.Application.Permissions;
 /// </summary>
 public sealed class CachingEffectivePermissionResolver : IEffectivePermissionResolver
 {
+    private const string Module = "sys";
     private readonly EffectivePermissionResolver _inner;
-    private readonly IMemoryCache _cache;
+    private readonly ICachingService _cache;
+    private readonly ILockService _lock;
     private readonly ICurrentUser _currentUser;
-    private readonly SysSecurityCacheGeneration _generation;
-    private readonly SysSecurityCacheOptions _options;
+    private readonly SysSecurityCacheVersionStore _versions;
+    private readonly CacheOptions _options;
 
     public CachingEffectivePermissionResolver(
         EffectivePermissionResolver inner,
-        IMemoryCache cache,
+        ICachingService cache,
+        ILockService @lock,
         ICurrentUser currentUser,
-        SysSecurityCacheGeneration generation,
-        IOptions<SysSecurityCacheOptions> options)
+        SysSecurityCacheVersionStore versions,
+        IOptions<CacheOptions> options)
     {
         _inner = inner;
         _cache = cache;
+        _lock = @lock;
         _currentUser = currentUser;
-        _generation = generation;
+        _versions = versions;
         _options = options.Value;
     }
 
@@ -39,23 +44,48 @@ public sealed class CachingEffectivePermissionResolver : IEffectivePermissionRes
             return await _inner.GetEffectivePermissionCodesAsync(userId, cancellationToken).ConfigureAwait(false);
         }
 
-        var gen = _generation.Permission;
-        var cacheKey = $"cjora:perm:{_currentUser.TenantId}:{userId}:{gen}";
-        if (_cache.TryGetValue(cacheKey, out IReadOnlySet<string>? cached) && cached is not null)
+        var ver = await _versions.GetPermissionVersionAsync(cancellationToken).ConfigureAwait(false);
+        var cacheKey = SaaSCacheKeys.UserScoped(Module, "perm", _currentUser.TenantId, userId, ver);
+
+        var cached = await _cache.GetAsync<HashSet<string>>(cacheKey).ConfigureAwait(false);
+        if (cached is not null)
         {
             return cached;
         }
 
-        var fresh = await _inner.GetEffectivePermissionCodesAsync(userId, cancellationToken).ConfigureAwait(false);
-        _cache.Set(
-            cacheKey,
-            fresh,
-            new MemoryCacheEntryOptions
+        var lockKey = SaaSCacheKeys.Lock(Module, "perm", $"{_currentUser.TenantId}:{userId}");
+        var handle = await _lock.TryAcquireAsync(lockKey, TimeSpan.FromSeconds(5), cancellationToken).ConfigureAwait(false);
+        if (handle is not null)
+        {
+            await using (handle.ConfigureAwait(false))
             {
-                AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(
-                    Math.Clamp(_options.AbsoluteExpirationMinutes, 5, 10))
-            });
+                // double-check
+                cached = await _cache.GetAsync<HashSet<string>>(cacheKey).ConfigureAwait(false);
+                if (cached is not null)
+                {
+                    return cached;
+                }
+
+                var freshLocked = await _inner.GetEffectivePermissionCodesAsync(userId, cancellationToken).ConfigureAwait(false);
+                await _cache.SetAsync(
+                        cacheKey,
+                        freshLocked.ToHashSet(StringComparer.Ordinal),
+                        TimeSpan.FromMinutes(Math.Clamp(_options.DefaultExpireMinutes, 5, 10)))
+                    .ConfigureAwait(false);
+
+                return freshLocked;
+            }
+        }
+
+        // 未抢到锁：直接重算（避免阻塞），但仍会写入缓存。
+        var fresh = await _inner.GetEffectivePermissionCodesAsync(userId, cancellationToken).ConfigureAwait(false);
+        await _cache.SetAsync(
+                cacheKey,
+                fresh.ToHashSet(StringComparer.Ordinal),
+                TimeSpan.FromMinutes(Math.Clamp(_options.DefaultExpireMinutes, 5, 10)))
+            .ConfigureAwait(false);
         return fresh;
+
     }
 
     /// <inheritdoc />

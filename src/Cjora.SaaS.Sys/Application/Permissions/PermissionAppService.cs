@@ -9,12 +9,12 @@ internal sealed class PermissionAppService : IPermissionAppService
 {
     private readonly IRepository<SysPermission> _perms;
     private readonly IRepository<SysRolePermission> _rolePerms;
-    private readonly ISysSecurityMemoryCacheControl _securityCache;
+    private readonly ISysSecurityCacheControl _securityCache;
 
     public PermissionAppService(
         IRepository<SysPermission> perms,
         IRepository<SysRolePermission> rolePerms,
-        ISysSecurityMemoryCacheControl securityCache)
+        ISysSecurityCacheControl securityCache)
     {
         _perms = perms;
         _rolePerms = rolePerms;
@@ -92,7 +92,7 @@ internal sealed class PermissionAppService : IPermissionAppService
         };
 
         await _perms.InsertAsync(entity, cancellationToken);
-        _securityCache.InvalidatePermissionCaches();
+        await _securityCache.InvalidatePermissionCachesAsync(cancellationToken).ConfigureAwait(false);
         return entity.Id;
     }
 
@@ -118,7 +118,7 @@ internal sealed class PermissionAppService : IPermissionAppService
         p.IsActive = request.IsActive;
         p.UpdatedAtUtc = DateTime.UtcNow;
         await _perms.UpdateAsync(p, cancellationToken);
-        _securityCache.InvalidatePermissionCaches();
+        await _securityCache.InvalidatePermissionCachesAsync(cancellationToken).ConfigureAwait(false);
         return true;
     }
 
@@ -132,7 +132,7 @@ internal sealed class PermissionAppService : IPermissionAppService
         var n = await _perms.DeleteAsync(x => x.Id == id, cancellationToken);
         if (n > 0)
         {
-            _securityCache.InvalidatePermissionCaches();
+            await _securityCache.InvalidatePermissionCachesAsync(cancellationToken).ConfigureAwait(false);
         }
 
         return n > 0;
