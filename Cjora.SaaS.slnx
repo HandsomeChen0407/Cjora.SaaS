@@ -6,8 +6,6 @@
     <File Path="README.md" />
   </Folder>
   <Project Path="Cjora.SaaS.Core/Cjora.SaaS.Core.csproj" />
-  <Project Path="Cjora.SaaS.Crm/Cjora.SaaS.Crm.csproj" />
-  <Project Path="Cjora.SaaS.Pm/Cjora.SaaS.Pm.csproj" />
   <Project Path="Cjora.SaaS.Sys.Api/Cjora.SaaS.Sys.Api.csproj" />
   <Project Path="Cjora.SaaS.Sys/Cjora.SaaS.Sys.csproj" />
 </Solution>
