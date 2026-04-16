@@ -39,7 +39,10 @@ public sealed class RequestLoggingMiddleware
             return;
         }
 
-        var traceId = Activity.Current?.Id ?? context.TraceIdentifier;
+        // W3C TraceContext：优先使用 Activity（由 ASP.NET Core / OpenTelemetry 自动创建），
+        // 它会自动解析上游 traceparent 头并传播到下游 HttpClient 调用。
+        var traceId = Activity.Current?.TraceId.ToString() ?? context.TraceIdentifier;
+
         context.Items["TraceId"] = traceId;
         context.Response.Headers.TryAdd("X-Trace-Id", traceId);
 
@@ -76,9 +79,14 @@ public sealed class RequestLoggingMiddleware
 
     private void EmitLog(HttpContext context, string traceId, long elapsedMs, Exception? exception)
     {
+        var activity = Activity.Current;
         var props = new Dictionary<string, object?>(StringComparer.Ordinal)
         {
             ["TraceId"] = traceId,
+            ["SpanId"] = activity?.SpanId.ToString(),
+            ["ParentSpanId"] = activity?.ParentSpanId.ToString(),
+            ["ServiceName"] = _options.ServiceName,
+            ["InstanceId"] = _options.InstanceId,
             ["Method"] = context.Request.Method,
             ["Path"] = context.Request.Path.Value,
             ["StatusCode"] = context.Response.StatusCode,

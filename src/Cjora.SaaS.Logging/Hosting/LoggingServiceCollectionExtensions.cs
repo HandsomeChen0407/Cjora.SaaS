@@ -3,12 +3,13 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Cjora.SaaS.Logging.Hosting;
 
-/// <summary>Logging DI registration.</summary>
+/// <summary>Logging 模块 DI 注册。</summary>
 public static class LoggingServiceCollectionExtensions
 {
     /// <summary>
-    /// Register <see cref="RequestLoggingOptions"/> and related services.
-    /// Call <c>UseCjoraRequestLogging()</c> in the pipeline to activate the middleware.
+    /// 注册 <see cref="RequestLoggingOptions"/>。
+    /// 通过 <paramref name="configure"/> 可设置 <c>ServiceName</c>、<c>InstanceId</c>、<c>ExcludePaths</c> 等。
+    /// 管道中调用 <c>UseCjoraRequestLogging()</c> 激活中间件。
     /// </summary>
     public static IServiceCollection AddCjoraLogging(
         this IServiceCollection services,

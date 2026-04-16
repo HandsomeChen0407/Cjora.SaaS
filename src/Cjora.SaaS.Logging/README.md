@@ -12,10 +12,11 @@
 
 | 负责 | 不负责 |
 |------|--------|
-| 请求维度结构化日志（TraceId / Path / ElapsedMs / StatusCode） | SQL 日志（由 Core SqlSugar AOP 负责） |
+| 请求维度结构化日志（TraceId / SpanId / ServiceName / Path / ElapsedMs） | SQL 日志（由 Core SqlSugar AOP 负责） |
+| W3C TraceContext 标准字段输出（TraceId / SpanId / ParentSpanId） | OpenTelemetry SDK 集成（由宿主按需添加） |
 | 未处理异常捕获 + 统一 JSON 错误响应 | 业务异常分类（由业务层抛出特定异常） |
 | `IRequestLogEnricher` 扩展接口定义 | 领域字段（DataScope 等）的具体收集 |
-| 响应头写入 `X-Trace-Id` | 追踪系统集成（OpenTelemetry 等） |
+| 响应头写入 `X-Trace-Id` + 服务/实例标识 | 日志存储与可视化（Seq / ELK / Jaeger） |
 
 本项目不引用 `Cjora.SaaS.Core`、`Cjora.SaaS.Sys`、`Cjora.SaaS.Caching`。
 
@@ -40,7 +41,11 @@ Cjora.SaaS.Logging（独立）
 
 | 字段 | 来源 |
 |------|------|
-| `TraceId` | `Activity.Current?.Id` 或 `context.TraceIdentifier` |
+| `TraceId` | W3C `Activity.Current?.TraceId`（32 位 Hex）或 `context.TraceIdentifier` |
+| `SpanId` | `Activity.Current?.SpanId`（当前 Span 标识，链路追踪用） |
+| `ParentSpanId` | `Activity.Current?.ParentSpanId`（父 Span 标识，跨服务追踪用） |
+| `ServiceName` | `RequestLoggingOptions.ServiceName`（默认入口程序集名） |
+| `InstanceId` | `RequestLoggingOptions.InstanceId`（默认机器名 / Pod 名） |
 | `Method` | HTTP Method |
 | `Path` | 请求路径 |
 | `StatusCode` | 响应状态码 |
@@ -48,6 +53,8 @@ Cjora.SaaS.Logging（独立）
 | `UserId` | JWT Claim `user_id` |
 | `TenantId` | 请求头 `X-Tenant-Id` |
 | *(扩展字段)* | 各 `IRequestLogEnricher` 注入 |
+
+**W3C TraceContext 支持**：ASP.NET Core 内置的 `ActivitySource` 自动解析上游 `traceparent` 头并传播到下游 `HttpClient` 调用，无需手写协议。未来接入 OpenTelemetry 时，日志中的 `TraceId / SpanId` 与 Jaeger / Zipkin 自动对齐。
 
 异常时：响应状态码置 500，返回 JSON `{ success: false, error: "unhandled", traceId, message }`。  
 开发环境开启 `IncludeExceptionDetail` 后 `message` 包含异常原始信息，生产环境固定为 `"Internal Server Error"`。
@@ -75,6 +82,8 @@ builder.Services.AddCjoraLogging(o =>
 {
     o.IncludeExceptionDetail = builder.Environment.IsDevelopment();
     // o.ExcludePaths.Add("/metrics");  // 可选：排除额外路径
+    // o.ServiceName = "sys-api";       // 可选：微服务场景显式设置服务名（默认为程序集名）
+    // o.InstanceId = Environment.GetEnvironmentVariable("POD_NAME") ?? Environment.MachineName;  // 可选：容器化部署设置 Pod 名
 });
 ```
 
@@ -115,11 +124,15 @@ properties["BypassRowLevelFilters"] = context.BypassRowLevelFilters;
 properties["DataPermissionProviders"] = providerNames;
 ```
 
-输出日志示例（结构化，适配 Seq / ELK 等）：
+输出日志示例（结构化，适配 Seq / ELK / Jaeger 等）：
 
 ```json
 {
-  "TraceId": "00-abc123-01",
+  "TraceId": "abc123def456789012345678abcdef00",
+  "SpanId": "789abcdef0123456",
+  "ParentSpanId": "456def0000000000",
+  "ServiceName": "Cjora.SaaS.Sys.Api",
+  "InstanceId": "pod-sys-api-1",
   "Method": "GET",
   "Path": "/api/users",
   "StatusCode": 200,

@@ -11,7 +11,7 @@ namespace Cjora.SaaS.Caching.Hosting;
 public static class CachingServiceCollectionExtensions
 {
     /// <summary>
-    /// 注册 <see cref="ICachingService"/>、<see cref="ILockService"/>、<see cref="IGeoService"/>、<see cref="IHashMapService"/>。
+    /// 注册 <see cref="ICachingService"/>、<see cref="ILockService"/>、<see cref="IGeoService"/>、<see cref="IHashMapService"/>、<see cref="ICacheInvalidationBus"/>。
     /// 当 <c>Cache:Provider=Redis</c> 时使用 Redis 实现，否则使用 Memory 默认实现。
     /// </summary>
     public static IServiceCollection AddCjoraCaching(
@@ -33,6 +33,7 @@ public static class CachingServiceCollectionExtensions
             services.AddSingleton<ILockService, RedisLockService>();
             services.AddSingleton<IGeoService, RedisGeoService>();
             services.AddSingleton<IHashMapService, RedisHashMapService>();
+            services.AddSingleton<ICacheInvalidationBus, RedisCacheInvalidationBus>();
         }
         else
         {
@@ -40,6 +41,7 @@ public static class CachingServiceCollectionExtensions
             services.AddSingleton<ILockService, MemoryLockService>();
             services.AddSingleton<IGeoService, MemoryGeoService>();
             services.AddSingleton<IHashMapService, MemoryHashMapService>();
+            services.AddSingleton<ICacheInvalidationBus, MemoryCacheInvalidationBus>();
         }
 
         return services;

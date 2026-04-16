@@ -26,9 +26,9 @@
 
 | 项目 | 层次 | 依赖 | 主要职责 |
 |------|------|------|---------|
-| [Core](src/Cjora.SaaS.Core/README.md) | 规则层 | SqlSugar | 多租户、软删除、数据权限契约、QueryFilter 管道 |
-| [Caching](src/Cjora.SaaS.Caching/README.md) | 基础设施 | StackExchange.Redis | 键值缓存、分布式锁、GEO、Hash，独立于 Core |
-| [Logging](src/Cjora.SaaS.Logging/README.md) | 基础设施 | ASP.NET Core | 请求结构化日志、未处理异常 JSON 响应，独立于 Core |
+| [Core](src/Cjora.SaaS.Core/README.md) | 规则层 | SqlSugar | 多租户、软删除、数据权限契约（ORM 过滤 + ORM 无关双路径）、QueryFilter 管道 |
+| [Caching](src/Cjora.SaaS.Caching/README.md) | 基础设施 | StackExchange.Redis | 键值缓存、分布式锁、GEO、Hash、缓存失效广播，独立于 Core |
+| [Logging](src/Cjora.SaaS.Logging/README.md) | 基础设施 | ASP.NET Core | 请求结构化日志（W3C Trace）、服务/实例标识、异常 JSON 响应，独立于 Core |
 | [Sys](src/Cjora.SaaS.Sys/README.md) | 业务层 | Core + Caching + Logging | IAM 业务，实现 Core 所有可插拔接口 |
 | [Sys.Web](src/Cjora.SaaS.Sys.Web/README.md) | HTTP 层 | Sys | Controller、JWT 签发、PermCode 鉴权 |
 | [Sys.Api](src/Cjora.SaaS.Sys.Api/README.md) | 生产宿主 | Sys + Sys.Web + Caching + Logging | 纯 IAM 服务，无业务模块 |
@@ -40,7 +40,9 @@
 
 ## 数据权限机制（核心设计）
 
-数据权限由 **DataScopeKind 枚举** 描述，分两层叠加生效：
+数据权限由 **DataScopeKind 枚举** 描述，提供两条消费路径（并行存在）：
+
+**路径 A：ORM 层自动过滤（单体 / SqlSugar 服务）**
 
 ```
 租户过滤（ITenantScopedEntity）           — 所有查询强制带 tenant_id
@@ -48,6 +50,14 @@
 行级过滤（ISqlSugarDataPermissionFilterProvider）  — 各业务模块注册，处理指定 DataScope
     ↓ AND
 Self 过滤（ICreatorOwnedEntity）          — DataScopeKind.Self 时追加创建人条件
+```
+
+**路径 B：结构化数据返回（微服务 / 其他 ORM）**
+
+```
+IDataPermissionContext → IDataPermissionProvider → DataPermissionGrant
+    → 返回部门 Id 列表 / 项目 Id 列表 / 是否全量等结构化数据
+    → 消费方自行转化为 WHERE 条件、API 过滤或其他形态
 ```
 
 | DataScopeKind | 含义 | 需要哪个 Provider |
@@ -64,7 +74,7 @@ Self 过滤（ICreatorOwnedEntity）          — DataScopeKind.Self 时追加�
 
 ## 缓存（Cjora.SaaS.Caching）
 
-独立项目，不依赖 Core/Sys。提供四类抽象与 Memory / Redis 双实现：
+独立项目，不依赖 Core/Sys。提供五类抽象与 Memory / Redis 双实现：
 
 | 抽象 | Memory 实现 | Redis 实现 |
 |------|-------------|------------|
@@ -72,6 +82,7 @@ Self 过滤（ICreatorOwnedEntity）          — DataScopeKind.Self 时追加�
 | `ILockService` | `MemoryLockService`（进程内） | `RedisLockService`（SET NX PX + Lua） |
 | `IGeoService` | `MemoryGeoService`（Haversine） | `RedisGeoService`（GEOADD / GEORADIUS） |
 | `IHashMapService` | `MemoryHashMapService` | `RedisHashMapService` |
+| `ICacheInvalidationBus` | `MemoryCacheInvalidationBus`（进程内） | `RedisCacheInvalidationBus`（Pub/Sub） |
 
 **配置切换**（`appsettings.json`）：
 
@@ -92,11 +103,13 @@ Self 过滤（ICreatorOwnedEntity）          — DataScopeKind.Self 时追加�
 独立项目，不依赖 Core/Sys。每个请求输出一条结构化日志：
 
 ```
-TraceId / Method / Path / StatusCode / ElapsedMs / UserId / TenantId
+TraceId / SpanId / ParentSpanId / ServiceName / InstanceId / Method / Path / StatusCode / ElapsedMs / UserId / TenantId
 ```
 
-通过 `IRequestLogEnricher` 扩展：Sys 已注册 `DataPermissionRequestLogEnricher`，额外输出 `DataScope / BypassRowLevelFilters`。  
-未处理异常返回统一 JSON：`{ success: false, error: "unhandled", traceId, message }`。
+- W3C TraceContext 标准：`TraceId / SpanId / ParentSpanId` 自动与 `traceparent` 头对齐，跨服务调用链路可追踪
+- `ServiceName / InstanceId`：微服务多实例部署时区分日志来源
+- 通过 `IRequestLogEnricher` 扩展：Sys 已注册 `DataPermissionRequestLogEnricher`，额外输出 `DataScope / BypassRowLevelFilters`
+- 未处理异常返回统一 JSON：`{ success: false, error: "unhandled", traceId, message }`
 
 ---
 

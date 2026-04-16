@@ -50,8 +50,16 @@ Core 不引用 Sys、Caching、Logging、Crm、Pm 中的任何程序集。
 
 - `DataScopeKind` 枚举（`All / Tenant / Department / Self / Project / Customer`）
 - `IDataPermissionContext`：当前请求已确定的数据权限视图（Scope、BypassRowLevelFilters、CurrentUserId、可访问部门列表）
-- `IDataPermissionResolver`：如何解析出 `IDataPermissionContext`（由宿主实现，默认从 JWT Claims 读取）
-- `ISqlSugarDataPermissionFilterProvider`：可插拔的行级过滤器扩展点；业务模块（Sys/Crm/Pm）各自注册
+- `IDataPermissionResolver`：如何解析出 `IDataPermissionContext`（由宿主实现，默认从 JWT Claims 读取；微服务场景可替换为远程调用 IAM 服务）
+- `ISqlSugarDataPermissionFilterProvider`：可插拔的行级过滤器扩展点（ORM 层）；业务模块（Sys/Crm/Pm）各自注册
+- `IDataPermissionProvider`：**与 ORM 无关的数据权限范围提供器**（微服务演进预留）；返回 `DataPermissionGrant` 结构化数据（部门 Id 列表 / 项目 Id 列表 / 是否全量等），消费方自行决定如何转化为 WHERE 条件或 API 过滤
+
+两条数据权限消费路径**并行存在**，互不冲突：
+
+```
+路径 A（单体 / ORM 层）：IDataPermissionContext → ISqlSugarDataPermissionFilterProvider → QueryFilter
+路径 B（微服务 / ORM 无关）：IDataPermissionContext → IDataPermissionProvider → DataPermissionGrant → 消费方自行过滤
+```
 
 ### 3. SqlSugar 管道（`SqlSugar/`）
 
@@ -123,6 +131,17 @@ await using (client as IAsyncDisposable ?? Disposable.Empty)
 using (_dataPermissionScope.Disable())
 {
     var all = await _repo.GetListAsync(ct);
+}
+
+// 微服务场景：通过 IDataPermissionProvider 获取结构化权限数据（不依赖 SqlSugar）
+var grant = await _provider.GetGrantAsync(dataPermissionContext, ct);
+if (grant.IsFullAccess)
+{
+    // 不追加额外过滤
+}
+else if (grant.Scope == DataScopeKind.Department)
+{
+    // 自行拼接 WHERE dept_id IN (grant.AccessibleDepartmentIds)
 }
 ```
 

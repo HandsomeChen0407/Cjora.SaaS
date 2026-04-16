@@ -43,6 +43,7 @@ Cjora.SaaS.Caching（独立）
 | `ILockService` | 分布式锁（TryAcquire，返回 `ILockHandle`，using 自动释放） |
 | `IGeoService` | GEO 空间操作（Add / RadiusSearch） |
 | `IHashMapService` | Redis Hash 结构（HGet / HSet / HDel / HGetAll） |
+| `ICacheInvalidationBus` | 缓存失效广播总线（Publish / Subscribe，跨实例缓存一致性） |
 
 ### 实现对照
 
@@ -52,6 +53,7 @@ Cjora.SaaS.Caching（独立）
 | `ILockService` | `MemoryLockService`（进程内 `SemaphoreSlim`） | `RedisLockService`（SET NX PX + Lua 原子释放） |
 | `IGeoService` | `MemoryGeoService`（Haversine 计算） | `RedisGeoService`（GEOADD / GEORADIUS） |
 | `IHashMapService` | `MemoryHashMapService`（`ConcurrentDictionary`） | `RedisHashMapService` |
+| `ICacheInvalidationBus` | `MemoryCacheInvalidationBus`（进程内事件） | `RedisCacheInvalidationBus`（Redis Pub/Sub） |
 
 ### Key 命名规范（`SaaSCacheKeys`）
 
@@ -125,6 +127,16 @@ var nearby = await _geo.RadiusSearchAsync("stores", myLat, myLon, 3, "km");
 
 // Hash：维护用户在线状态
 await _hashMap.HSetAsync("online:users", userId.ToString(), new UserStatus { LastSeen = DateTime.UtcNow });
+
+// 缓存失效广播：权限变更后主动通知所有实例
+await _bus.PublishAsync(SaaSCacheKeys.Version("sys", "perm", tenantId));
+
+// 订阅失效通知（通常在应用启动时注册）
+await _bus.SubscribeAsync("saas:sys:ver:*", async key =>
+{
+    await _cache.RemoveAsync(key);
+    // 可在此处触发本地缓存刷新
+});
 ```
 
 ---
@@ -139,3 +151,5 @@ await _hashMap.HSetAsync("online:users", userId.ToString(), new UserStatus { Las
 | Memory 模式下 `ILockService` 跨进程协调 | `MemoryLockService` 只在进程内互斥，多实例下无效 | 多实例部署必须切换 `Provider=Redis` |
 | 不 `await using` 释放 `ILockHandle` | 锁未释放，下次相同 Key 永远锁定 | 始终 `await using var handle = await locks.TryAcquireAsync(...)` |
 | 直接构造 `RedisCacheService` / `MemoryCacheService` | 绕过配置切换，耦合实现 | 注入 `ICachingService` 接口 |
+| `ICacheInvalidationBus.SubscribeAsync` 的回调中执行长时间阻塞操作 | 阻塞 Redis Pub/Sub 接收线程 | 回调中仅做轻量操作（清缓存、设标记），重操作异步排队 |
+| Memory 模式下依赖 `ICacheInvalidationBus` 跨进程通知 | `MemoryCacheInvalidationBus` 仅进程内广播 | 多实例部署必须切换 `Provider=Redis` |
