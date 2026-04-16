@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>Cjora.SaaS.Host.Sample</RootNamespace>
+    <AssemblyName>Cjora.SaaS.Host.Sample</AssemblyName>
+    <NoWarn>$(NoWarn);1591</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Cjora.SaaS.Sys.Web\Cjora.SaaS.Sys.Web.csproj" />
+    <ProjectReference Include="..\Cjora.SaaS.Crm\Cjora.SaaS.Crm.csproj" />
+    <ProjectReference Include="..\Cjora.SaaS.Pm\Cjora.SaaS.Pm.csproj" />
+  </ItemGroup>
+
+</Project>

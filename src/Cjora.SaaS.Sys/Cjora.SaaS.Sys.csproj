@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Cjora.SaaS.Sys</RootNamespace>
+    <AssemblyName>Cjora.SaaS.Sys</AssemblyName>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <Description>系统管理（IAM）：用户、角色、角色内权限码（JSON），多租户与 Cjora.SaaS.Core 仓储对齐。</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BCrypt.Net-Next" Version="4.1.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Cjora.SaaS.Core\Cjora.SaaS.Core.csproj" />
+  </ItemGroup>
+
+</Project>

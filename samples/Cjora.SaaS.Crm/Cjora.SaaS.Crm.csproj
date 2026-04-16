@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Cjora.SaaS.Crm</RootNamespace>
+    <AssemblyName>Cjora.SaaS.Crm</AssemblyName>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <Description>CRM 客户域（可复用类库）：实体与 SqlSugar 客户域行级过滤器；不依赖具体宿主。可通过 dotnet pack 发布为 NuGet。</Description>
+    <IsPackable>true</IsPackable>
+    <PackageId>Cjora.SaaS.Crm</PackageId>
+    <Version>1.0.0</Version>
+    <Authors>Cjora</Authors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Cjora.SaaS.Core\Cjora.SaaS.Core.csproj" />
+  </ItemGroup>
+
+</Project>
