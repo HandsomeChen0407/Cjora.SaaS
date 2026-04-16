@@ -6,6 +6,7 @@ using Cjora.SaaS.Core.SqlSugar.Abstractions;
 using Cjora.SaaS.Core.SqlSugar.Models;
 using Microsoft.Extensions.DependencyInjection;
 using SqlSugar;
+using System.Linq;
 
 namespace Cjora.SaaS.Core.SqlSugar.Providers;
 
@@ -37,6 +38,35 @@ internal static class SqlSugarSaaSClientBuilder
 
         return client;
     }
+
+    /// <summary>
+    /// 部门 / 项目 / 客户等范围必须由至少一个 <see cref="ISqlSugarDataPermissionFilterProvider"/> 声明 <see cref="ISqlSugarDataPermissionFilterProvider.HandledDataScopes"/> 覆盖，否则行级隔离失效。
+    /// </summary>
+    private static void EnsureDataScopeHandledByProviders(
+        IDataPermissionContext dataPermission,
+        ISqlSugarDataPermissionFilterProvider[] providers)
+    {
+        if (dataPermission.IsDisabled || dataPermission.BypassRowLevelFilters)
+        {
+            return;
+        }
+
+        if (!RequiresProviderHandledScope(dataPermission.Scope))
+        {
+            return;
+        }
+
+        if (providers.Any(p => p.HandledDataScopes.Contains(dataPermission.Scope)))
+        {
+            return;
+        }
+
+        throw new InvalidOperationException(
+            $"No {nameof(ISqlSugarDataPermissionFilterProvider)} declares {nameof(ISqlSugarDataPermissionFilterProvider.HandledDataScopes)} for {nameof(DataScopeKind)}.{dataPermission.Scope}.");
+    }
+
+    private static bool RequiresProviderHandledScope(DataScopeKind scope) =>
+        scope is DataScopeKind.Department or DataScopeKind.Project or DataScopeKind.Customer;
 
     private static void RegisterClientGuard(ISqlSugarClient client, IServiceProvider services)
     {
@@ -74,13 +104,9 @@ internal static class SqlSugarSaaSClientBuilder
             QueryFilterProvider.FilterJoinPosition.Where);
 
         // Row-level（可插拔）：Core 不关心具体 SQL 形态（IN/EXISTS/JOIN）。
-        // 业务实现层（如 Sys）通过 ISqlSugarDataPermissionFilterProvider 注入具体过滤器（要求不使用 IN）。
+        // 业务实现层（如 Sys / CRM / PM）通过 ISqlSugarDataPermissionFilterProvider 注入具体过滤器（要求不使用 IN）。
         var providers = services.GetServices<ISqlSugarDataPermissionFilterProvider>().ToArray();
-        if (dataPermission.Scope == DataScopeKind.Department && providers.Length == 0)
-        {
-            throw new InvalidOperationException(
-                "No ISqlSugarDataPermissionFilterProvider registered. Department scope is unsafe.");
-        }
+        EnsureDataScopeHandledByProviders(dataPermission, providers);
 
         foreach (var p in providers)
         {

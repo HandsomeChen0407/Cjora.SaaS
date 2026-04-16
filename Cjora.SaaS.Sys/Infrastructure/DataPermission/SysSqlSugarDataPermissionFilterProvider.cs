@@ -11,6 +11,11 @@ namespace Cjora.SaaS.Sys.DataPermission;
 /// </summary>
 public sealed class SysSqlSugarDataPermissionFilterProvider : ISqlSugarDataPermissionFilterProvider
 {
+    private static readonly DataScopeKind[] DepartmentOnly = { DataScopeKind.Department };
+
+    /// <inheritdoc />
+    public IReadOnlyList<DataScopeKind> HandledDataScopes => DepartmentOnly;
+
     public void Apply(ISqlSugarClient client, IDataPermissionContext context)
     {
         // Department：EXISTS(sys_user_data_scope JOIN sys_department_closure)
@@ -37,8 +42,6 @@ public sealed class SysSqlSugarDataPermissionFilterProvider : ISqlSugarDataPermi
                 )
                 || context.Scope != DataScopeKind.Department,
             QueryFilterProvider.FilterJoinPosition.Where);
-
-        // Project/Customer/Custom：预留扩展点（同样应使用 EXISTS/JOIN，不使用 IN）。
     }
 }
 

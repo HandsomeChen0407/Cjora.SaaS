@@ -32,5 +32,15 @@ public enum DataScopeKind
     /// <summary>
     /// 仅本人创建或归属的数据（依赖实体上的 <see cref="ICreatorOwnedEntity"/>）。
     /// </summary>
-    Self = 3
+    Self = 3,
+
+    /// <summary>
+    /// 项目域：仅可见当前用户参与的项目相关数据（依赖实体上的 <see cref="Cjora.SaaS.Core.DataPermission.Abstractions.IProjectScopedEntity"/>，由 PM 等业务模块通过 EXISTS 实现）。
+    /// </summary>
+    Project = 4,
+
+    /// <summary>
+    /// 客户域：仅可见「创建人为本人」的客户及其子资源（依赖实体上的 <see cref="Cjora.SaaS.Core.DataPermission.Abstractions.ICustomerScopedEntity"/>，由 CRM 等业务模块通过 EXISTS 实现）。
+    /// </summary>
+    Customer = 5
 }

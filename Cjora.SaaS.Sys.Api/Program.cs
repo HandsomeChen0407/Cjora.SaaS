@@ -1,6 +1,10 @@
 using System.Text;
 using Cjora.SaaS.Core.Extensions;
 using Cjora.SaaS.Core.SqlSugar.Constants;
+using Cjora.SaaS.Crm;
+using Cjora.SaaS.Crm.Entities;
+using Cjora.SaaS.Pm;
+using Cjora.SaaS.Pm.Entities;
 using Cjora.SaaS.Sys;
 using Cjora.SaaS.Sys.Api.Auth;
 using Cjora.SaaS.Sys.DataPermission.Entities;
@@ -101,6 +105,8 @@ builder.Services.AddCjoraSaaSWithSqlSugar(
         o.AutoFillCreatorUserIdOnInsert = false;
     });
 builder.Services.AddCjoraSaaSSys();
+builder.Services.AddCjoraSaaSCrmDataPermission();
+builder.Services.AddCjoraSaaSPmDataPermission();
 
 var app = builder.Build();
 
@@ -124,7 +130,13 @@ using (var scope = app.Services.CreateScope())
         typeof(SysDepartmentClosure),
         typeof(SysPermission),
         typeof(SysDictType),
-        typeof(SysDictItem));
+        typeof(SysDictItem),
+        typeof(CrmCustomer),
+        typeof(CrmCustomerContact),
+        typeof(CrmCustomerFollow),
+        typeof(PmProject),
+        typeof(PmProjectMember),
+        typeof(PmProjectContract));
 
     DatabaseSchemaValidator.ValidateIndexes(db);
 

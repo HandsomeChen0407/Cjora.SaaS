@@ -16,6 +16,8 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Cjora.SaaS.Crm\Cjora.SaaS.Crm.csproj" />
+    <ProjectReference Include="..\Cjora.SaaS.Pm\Cjora.SaaS.Pm.csproj" />
     <ProjectReference Include="..\Cjora.SaaS.Sys\Cjora.SaaS.Sys.csproj" />
   </ItemGroup>
 
