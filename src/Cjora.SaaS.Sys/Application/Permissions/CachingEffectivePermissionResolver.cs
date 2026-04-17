@@ -1,6 +1,8 @@
+using System.Diagnostics;
 using Cjora.SaaS.Core.Auth.Abstractions;
 using Cjora.SaaS.Caching.Abstractions;
 using Cjora.SaaS.Caching.Models;
+using Cjora.SaaS.Sys.Diagnostics;
 using Cjora.SaaS.Sys.Infrastructure.Caching;
 using Cjora.SaaS.Sys.Permissions;
 using Microsoft.Extensions.Options;
@@ -44,48 +46,83 @@ public sealed class CachingEffectivePermissionResolver : IEffectivePermissionRes
             return await _inner.GetEffectivePermissionCodesAsync(userId, cancellationToken).ConfigureAwait(false);
         }
 
-        var ver = await _versions.GetPermissionVersionAsync(cancellationToken).ConfigureAwait(false);
-        var cacheKey = SaaSCacheKeys.UserScoped(Module, "perm", _currentUser.TenantId, userId, ver);
+        var kindTag = new KeyValuePair<string, object?>(AuthTelemetry.Tags.Kind, "permission");
+        using var activity = AuthTelemetry.ActivitySource.StartActivity(
+            name: "auth.permission.resolve",
+            kind: ActivityKind.Internal);
+        activity?.SetTag(AuthTelemetry.Tags.Kind, "permission");
 
-        var cached = await _cache.GetAsync<HashSet<string>>(cacheKey).ConfigureAwait(false);
-        if (cached is not null)
+        var sw = Stopwatch.StartNew();
+        string source = "fresh";
+        try
         {
-            return cached;
-        }
+            var ver = await _versions.GetPermissionVersionAsync(cancellationToken).ConfigureAwait(false);
+            var cacheKey = SaaSCacheKeys.UserScoped(Module, "perm", _currentUser.TenantId, userId, ver);
 
-        var lockKey = SaaSCacheKeys.Lock(Module, "perm", $"{_currentUser.TenantId}:{userId}");
-        var handle = await _lock.TryAcquireAsync(lockKey, TimeSpan.FromSeconds(5), cancellationToken).ConfigureAwait(false);
-        if (handle is not null)
-        {
-            await using (handle.ConfigureAwait(false))
+            var cached = await _cache.GetAsync<HashSet<string>>(cacheKey).ConfigureAwait(false);
+            if (cached is not null)
             {
-                // double-check
-                cached = await _cache.GetAsync<HashSet<string>>(cacheKey).ConfigureAwait(false);
-                if (cached is not null)
-                {
-                    return cached;
-                }
-
-                var freshLocked = await _inner.GetEffectivePermissionCodesAsync(userId, cancellationToken).ConfigureAwait(false);
-                await _cache.SetAsync(
-                        cacheKey,
-                        freshLocked.ToHashSet(StringComparer.Ordinal),
-                        TimeSpan.FromMinutes(Math.Clamp(_options.DefaultExpireMinutes, 5, 10)))
-                    .ConfigureAwait(false);
-
-                return freshLocked;
+                source = "cache";
+                AuthTelemetry.CacheHits.Add(1, kindTag);
+                activity?.SetTag(AuthTelemetry.Tags.Source, source);
+                return cached;
             }
+
+            AuthTelemetry.CacheMisses.Add(1, kindTag);
+
+            var lockKey = SaaSCacheKeys.Lock(Module, "perm", $"{_currentUser.TenantId}:{userId}");
+            var handle = await _lock.TryAcquireAsync(lockKey, TimeSpan.FromSeconds(5), cancellationToken).ConfigureAwait(false);
+            if (handle is not null)
+            {
+                await using (handle.ConfigureAwait(false))
+                {
+                    // double-check
+                    cached = await _cache.GetAsync<HashSet<string>>(cacheKey).ConfigureAwait(false);
+                    if (cached is not null)
+                    {
+                        source = "cache";
+                        AuthTelemetry.CacheHits.Add(1, kindTag);
+                        activity?.SetTag(AuthTelemetry.Tags.Source, source);
+                        return cached;
+                    }
+
+                    var freshLocked = await _inner.GetEffectivePermissionCodesAsync(userId, cancellationToken).ConfigureAwait(false);
+                    await _cache.SetAsync(
+                            cacheKey,
+                            freshLocked.ToHashSet(StringComparer.Ordinal),
+                            TimeSpan.FromMinutes(Math.Clamp(_options.DefaultExpireMinutes, 5, 10)))
+                        .ConfigureAwait(false);
+
+                    source = "fresh";
+                    activity?.SetTag(AuthTelemetry.Tags.Source, source);
+                    return freshLocked;
+                }
+            }
+
+            // 未抢到锁：直接重算（避免阻塞），但仍会写入缓存。
+            source = "fresh_no_lock";
+            var fresh = await _inner.GetEffectivePermissionCodesAsync(userId, cancellationToken).ConfigureAwait(false);
+            await _cache.SetAsync(
+                    cacheKey,
+                    fresh.ToHashSet(StringComparer.Ordinal),
+                    TimeSpan.FromMinutes(Math.Clamp(_options.DefaultExpireMinutes, 5, 10)))
+                .ConfigureAwait(false);
+            activity?.SetTag(AuthTelemetry.Tags.Source, source);
+            return fresh;
         }
-
-        // 未抢到锁：直接重算（避免阻塞），但仍会写入缓存。
-        var fresh = await _inner.GetEffectivePermissionCodesAsync(userId, cancellationToken).ConfigureAwait(false);
-        await _cache.SetAsync(
-                cacheKey,
-                fresh.ToHashSet(StringComparer.Ordinal),
-                TimeSpan.FromMinutes(Math.Clamp(_options.DefaultExpireMinutes, 5, 10)))
-            .ConfigureAwait(false);
-        return fresh;
-
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            AuthTelemetry.ComputeErrors.Add(1, kindTag);
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+            throw;
+        }
+        finally
+        {
+            sw.Stop();
+            AuthTelemetry.PermissionComputeDuration.Record(sw.Elapsed.TotalMilliseconds,
+                kindTag,
+                new KeyValuePair<string, object?>(AuthTelemetry.Tags.Source, source));
+        }
     }
 
     /// <inheritdoc />

@@ -1,4 +1,5 @@
-﻿using Cjora.SaaS.Caching.Abstractions;
+﻿using System.Diagnostics;
+using Cjora.SaaS.Caching.Abstractions;
 using Cjora.SaaS.Caching.Internal;
 using Cjora.SaaS.Caching.Models;
 using Microsoft.Extensions.Logging;
@@ -51,6 +52,13 @@ public sealed class RedisLockService : ILockService
         if (ttl <= TimeSpan.Zero)
             throw new ArgumentOutOfRangeException(nameof(ttl), "Lock TTL must be positive.");
 
+        using var activity = CacheTelemetry.ActivitySource.StartActivity(
+            name: "cache.lock.acquire",
+            kind: ActivityKind.Client);
+        activity?.SetTag("cjora.cache.provider", "Redis");
+        activity?.SetTag("cjora.cache.lock_key", key);
+        activity?.SetTag("cjora.cache.lock_ttl_ms", (long)ttl.TotalMilliseconds);
+
         var token = Guid.NewGuid().ToString("N");
 
         // 统计 acquire 耗时（网络抖动时可吃掉大段 TTL），传给 Handle 用于决定首次续租偏移，
@@ -62,10 +70,13 @@ public sealed class RedisLockService : ILockService
         if (!ok)
         {
             CacheMetrics.LocksContended.Add(1, CacheMetrics.Provider("Redis"));
+            activity?.SetTag("cjora.cache.lock_acquired", false);
             return null;
         }
 
         CacheMetrics.LocksAcquired.Add(1, CacheMetrics.Provider("Redis"));
+        activity?.SetTag("cjora.cache.lock_acquired", true);
+        activity?.SetTag("cjora.cache.acquire_elapsed_ms", sw.ElapsedMilliseconds);
         return new Handle(Db, key, token, ttl, Options.Lock, _logger, sw.Elapsed);
     }
 
@@ -202,6 +213,11 @@ public sealed class RedisLockService : ILockService
             }
 
             // 3) 释放 Redis 锁（Lua 原子比较 token + DEL），即使 Redis 慢也容忍其自然超时。
+            using var releaseActivity = CacheTelemetry.ActivitySource.StartActivity(
+                name: "cache.lock.release",
+                kind: ActivityKind.Client);
+            releaseActivity?.SetTag("cjora.cache.provider", "Redis");
+            releaseActivity?.SetTag("cjora.cache.lock_key", Key);
             try
             {
                 await _db.ScriptEvaluateAsync(ReleaseScript, new RedisKey[] { Key }, new RedisValue[] { _token })
@@ -209,6 +225,7 @@ public sealed class RedisLockService : ILockService
             }
             catch (Exception ex)
             {
+                releaseActivity?.SetStatus(ActivityStatusCode.Error, ex.Message);
                 _logger.LogWarning(ex, "Lock release failed (TTL will fall back). Key={Key}", Key);
             }
 

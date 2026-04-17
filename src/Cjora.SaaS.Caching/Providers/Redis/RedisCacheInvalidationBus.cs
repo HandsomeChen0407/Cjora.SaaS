@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Threading.Channels;
 using Cjora.SaaS.Caching.Abstractions;
 using Cjora.SaaS.Caching.Internal;
@@ -102,14 +103,35 @@ public sealed class RedisCacheInvalidationBus : ICacheInvalidationBus
             return;
 
         cancellationToken.ThrowIfCancellationRequested();
+
+        // 开启 Producer Span（OTel messaging 语义）；即使无 Current Activity 也产生孤立 Span，
+        // 方便"定时任务里主动 invalidate"也能追溯。订阅端会以此 span 的 TraceId 作为 parent 建立链路。
+        using var activity = CacheTelemetry.ActivitySource.StartActivity(
+            name: "cache.invalidate.publish",
+            kind: ActivityKind.Producer);
+        activity?.SetTag("messaging.system", "redis-pubsub");
+        activity?.SetTag("messaging.destination.name", _channel.ToString());
+        activity?.SetTag("messaging.operation", "publish");
+        activity?.SetTag("cjora.cache.key", key);
+
+        // 用 "W3C traceparent|key" 作为 payload，订阅端解析还原链路。格式稳定可反序列化，
+        // 旧订阅端（未升级代码）会把整段当 key 处理 —— 不匹配 pattern 直接丢弃，不会误删。
+        // 因此升级顺序必须"先升级 Subscriber 再升级 Publisher"，或者在切换期间容忍一次 invalidate 失败。
+        string payload = key;
+        if (Activity.Current is { } current)
+        {
+            payload = $"v1|{current.Id}|{key}";
+        }
+
         try
         {
-            await _subscriber.PublishAsync(_channel, key).ConfigureAwait(false);
+            await _subscriber.PublishAsync(_channel, payload).ConfigureAwait(false);
             _logger.LogDebug("RedisCacheInvalidationBus published: {Key}", key);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             CacheMetrics.InvalidationPublishFailures.Add(1, CacheMetrics.Provider("Redis"));
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
             _logger.LogWarning(ex, "RedisCacheInvalidationBus publish failed. Key={Key}", key);
             // 继续向上抛给 CacheManager，由其决定"日志降级还是继续抛给业务"。
             throw;
@@ -159,7 +181,15 @@ public sealed class RedisCacheInvalidationBus : ICacheInvalidationBus
         if (Volatile.Read(ref _disposed) == 1)
             return;
 
-        var key = message.ToString();
+        var rawPayload = message.ToString();
+        if (string.IsNullOrEmpty(rawPayload))
+            return;
+
+        // 解析 "v1|traceparent|key" 约定；失败则按兼容模式回退为 raw key。
+        // 注意：这里只做字符串 split，不触碰 Activity，Activity 在 worker 侧消费时才恢复（保证 trace 与 handler 的执行上下文一致）。
+        string key;
+        string? traceparent;
+        ParsePayload(rawPayload, out key, out traceparent);
         if (string.IsNullOrEmpty(key))
             return;
 
@@ -169,7 +199,8 @@ public sealed class RedisCacheInvalidationBus : ICacheInvalidationBus
 
         // Bounded + DropOldest：队列满时自动丢弃最老一条，保证生产侧（Redis 回调线程）不被阻塞，
         // 避免"慢 handler → 回调线程堆积 → 整个 StackExchange.Redis 消息泵停滞"。
-        if (!queue.Writer.TryWrite(key))
+        // 仍然投递 rawPayload，把解析推迟到 worker 端，减少回调线程工作量。
+        if (!queue.Writer.TryWrite(rawPayload))
         {
             CacheMetrics.InvalidationPublishFailures.Add(1,
                 CacheMetrics.Provider("Redis"),
@@ -179,14 +210,53 @@ public sealed class RedisCacheInvalidationBus : ICacheInvalidationBus
         }
     }
 
+    private static void ParsePayload(string raw, out string key, out string? traceparent)
+    {
+        // 仅识别 "v1|..|.." 三段式；其他格式一律按 raw key 处理，保证前后向兼容。
+        if (raw.Length > 3 && raw[0] == 'v' && raw[1] == '1' && raw[2] == '|')
+        {
+            var second = raw.IndexOf('|', 3);
+            if (second > 3)
+            {
+                traceparent = raw.Substring(3, second - 3);
+                key = raw[(second + 1)..];
+                return;
+            }
+        }
+        key = raw;
+        traceparent = null;
+    }
+
     private async Task WorkerLoopAsync(Channel<string> queue, CancellationToken cancellationToken)
     {
         try
         {
-            await foreach (var key in queue.Reader.ReadAllAsync(cancellationToken).ConfigureAwait(false))
+            await foreach (var rawPayload in queue.Reader.ReadAllAsync(cancellationToken).ConfigureAwait(false))
             {
                 if (Volatile.Read(ref _disposed) == 1)
                     return;
+
+                ParsePayload(rawPayload, out var key, out var traceparent);
+
+                // 若携带 traceparent，则基于上游 ActivityContext 建立 Consumer Span，
+                // 完成 "publisher 服务 A → redis pub/sub → consumer 服务 B" 的完整跨进程链路。
+                ActivityContext parentContext = default;
+                bool hasParent = !string.IsNullOrEmpty(traceparent)
+                                 && ActivityContext.TryParse(traceparent, traceState: null, out parentContext);
+
+                // 两个 StartActivity 重载在仅传 name/kind/parentContext 时会产生歧义；统一走 6 参数重载并用 default 补齐。
+                using var activity = CacheTelemetry.ActivitySource.StartActivity(
+                    "cache.invalidate.handle",
+                    ActivityKind.Consumer,
+                    hasParent ? parentContext : default,
+                    tags: null,
+                    links: null,
+                    startTime: default);
+
+                activity?.SetTag("messaging.system", "redis-pubsub");
+                activity?.SetTag("messaging.destination.name", _channel.ToString());
+                activity?.SetTag("messaging.operation", "receive");
+                activity?.SetTag("cjora.cache.key", key);
 
                 var snapshot = _subs.Values.ToArray();
                 foreach (var sub in snapshot)
@@ -201,6 +271,7 @@ public sealed class RedisCacheInvalidationBus : ICacheInvalidationBus
                     catch (Exception ex)
                     {
                         CacheMetrics.InvalidationHandlerErrors.Add(1, CacheMetrics.Provider("Redis"));
+                        activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
                         _logger.LogWarning(ex,
                             "RedisCacheInvalidationBus handler error. Pattern={Pattern}, Key={Key}",
                             sub.Pattern, key);

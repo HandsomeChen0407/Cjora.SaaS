@@ -7,10 +7,27 @@
     <RootNamespace>Cjora.SaaS.Logging</RootNamespace>
     <AssemblyName>Cjora.SaaS.Logging</AssemblyName>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <Description>基于 Serilog + OpenTelemetry 的可观测性基座：统一 HTTP 请求日志、LogContext 上下文、Tracing/Metrics 配置。</Description>
   </PropertyGroup>
 
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Logging: Serilog 原生管道，不允许任何自定义 Logger 封装 -->
+    <PackageReference Include="Serilog.AspNetCore" Version="8.0.3" />
+    <PackageReference Include="Serilog.Settings.Configuration" Version="8.0.4" />
+    <PackageReference Include="Serilog.Enrichers.Environment" Version="3.0.1" />
+    <PackageReference Include="Serilog.Enrichers.Thread" Version="4.0.0" />
+
+    <!-- Tracing + Metrics: OpenTelemetry 原生 API -->
+    <PackageReference Include="OpenTelemetry" Version="1.9.0" />
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.9.0" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.9.0" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.Http" Version="1.9.0" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.Runtime" Version="1.9.0" />
+    <PackageReference Include="OpenTelemetry.Exporter.Console" Version="1.9.0" />
   </ItemGroup>
 
 </Project>

@@ -14,9 +14,19 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
+using Serilog;
 using SqlSugar;
 
+// Bootstrap logger：确保宿主启动阶段的异常也能被 Serilog 捕获
+Log.Logger = new LoggerConfiguration()
+    .MinimumLevel.Information()
+    .WriteTo.Console()
+    .CreateBootstrapLogger();
+
 var builder = WebApplication.CreateBuilder(args);
+
+// 使用 Serilog 接管 ILogger（完全基于 appsettings 中 Serilog 节配置，禁止自定义 Logger 封装）
+builder.UseCjoraSerilog(o => o.ServiceName = "sys-api");
 
 builder.Services.AddControllers().AddCjoraSysWebControllers();
 builder.Services.AddEndpointsApiExplorer();
@@ -98,7 +108,13 @@ builder.Services.AddScoped<IAuthorizationHandler, PermCodeAuthorizationHandler>(
 builder.Services.AddScoped<JwtTokenService>();
 
 builder.Services.AddCjoraCaching(builder.Configuration);
-builder.Services.AddCjoraLogging(o => o.IncludeExceptionDetail = builder.Environment.IsDevelopment());
+builder.Services.AddCjoraObservabilityStack(
+    builder.Configuration,
+    o =>
+    {
+        o.ServiceName = "sys-api";
+        o.IncludeExceptionDetail = builder.Environment.IsDevelopment();
+    });
 
 builder.Services.AddCjoraSaaSWithSqlSugar(
     configureTenant: o =>
@@ -166,11 +182,24 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseRequestTimeouts();
-app.UseCjoraSaaSSysInfrastructure();
+app.UseCjoraSaaSSysInfrastructure();   // = UseSerilogRequestLogging + 异常兜底 + HTTP 指标
 app.UseCors("SysWeb");
 app.UseCjoraSaaSSysTenantResolution();
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseCjoraLogContext();              // Auth/TenantResolution 之后再把 TraceId/TenantId/UserId 压入 LogContext
 app.MapControllers();
 
-app.Run();
+try
+{
+    app.Run();
+}
+catch (Exception ex)
+{
+    Log.Fatal(ex, "sys-api host terminated unexpectedly");
+    throw;
+}
+finally
+{
+    Log.CloseAndFlush();
+}
