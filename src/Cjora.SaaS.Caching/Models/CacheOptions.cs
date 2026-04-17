@@ -13,8 +13,11 @@ public sealed class CacheOptions
     /// <summary>TTL 最小分钟数（全局硬下限）。</summary>
     public const int MinExpireMinutes = 1;
 
-    /// <summary>TTL 最大分钟数（全局硬上限，= 24 小时）。</summary>
-    public const int MaxExpireMinutes = 60 * 24;
+    /// <summary>
+    /// TTL 最大分钟数（全局硬上限，= 90 天）。业务 cache key 不应超过 24 小时，但预留足够空间给
+    /// 版本号 / 序列号 / 分布式计数器这类基础设施键显式传更长 TTL（例如 30 天）。
+    /// </summary>
+    public const int MaxExpireMinutes = 60 * 24 * 90;
 
     /// <summary>"Memory" 或 "Redis"。</summary>
     public string Provider { get; set; } = "Memory";
@@ -160,6 +163,16 @@ internal sealed class CacheOptionsValidator : IValidateOptions<CacheOptions>
 
         foreach (var kv in options.ModuleExpireMinutes)
         {
+            // ModuleExpireMinutes 用 StringComparer.Ordinal 严格匹配 CacheKey.Module，而 CacheKey.Module
+            // 仅允许 ^[a-z0-9][a-z0-9_-]{0,31}$；若配置里填了大写或特殊字符会在查找时静默未命中、退回默认 TTL，
+            // 这里拒绝启动暴露出来。
+            if (!CacheKey.IsValidModule(kv.Key))
+            {
+                errors.Add(
+                    $"Cache:ModuleExpireMinutes['{kv.Key}'] is not a valid CacheKey.Module "
+                    + "(required: ^[a-z0-9][a-z0-9_-]{0,31}$, lowercase only).");
+            }
+
             if (kv.Value < CacheOptions.MinExpireMinutes || kv.Value > CacheOptions.MaxExpireMinutes)
             {
                 errors.Add(

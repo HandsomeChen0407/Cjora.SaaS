@@ -120,38 +120,55 @@ public sealed class RedisHashMapService : IHashMapService
         return await Db.HashExistsAsync(key, field).ConfigureAwait(false);
     }
 
-    /// <inheritdoc />
-    public async Task<long> IncrementAsync(string key, string field, long value = 1, CancellationToken cancellationToken = default)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-
-        // 读 - 计算 - 写 用 Lua 保持原子；同时保持 {TypeAQN}\u0001{number} 编码，与 Memory 实现兼容。
-        // KEYS[1]=key, ARGV[1]=field, ARGV[2]=delta, ARGV[3]=typeTag
-        // Redis Lua (5.1) 不支持 '\u0001' 转义，必须用 string.char(1)。
-        const string script = @"
+    /// <summary>
+    /// 原子自增脚本。用 <see cref="LuaScript.Prepare"/> 预编译 + <c>EVALSHA</c> 复用，避免每次发送整段 Lua 源。
+    /// <para><b>溢出保护：</b>Lua <c>tonumber</c> 基于 IEEE 754 double，仅能精确表达 ±2^53。脚本校验计算结果超出该范围时
+    /// 通过 <c>redis.error_reply</c> 返回错误，客户端翻译成 <see cref="InvalidOperationException"/>，
+    /// 避免"大数字段静默失真"。</para>
+    /// </summary>
+    private static readonly LuaScript IncrementScript = LuaScript.Prepare(@"
 local sep = string.char(1)
-local cur = redis.call('HGET', KEYS[1], ARGV[1])
+local cur = redis.call('HGET', @key, @field)
 local n = 0
 if cur then
     local idx = string.find(cur, sep, 1, true)
     local body = idx and string.sub(cur, idx + 1) or cur
     n = tonumber(body) or 0
 end
-local nx = n + tonumber(ARGV[2])
-redis.call('HSET', KEYS[1], ARGV[1], ARGV[3] .. sep .. tostring(nx))
+local delta = tonumber(@delta)
+local nx = n + delta
+local SAFE = 9007199254740992
+if nx > SAFE or nx < -SAFE then
+    return redis.error_reply('CJORA_INC_OVERFLOW')
+end
+redis.call('HSET', @key, @field, @typeTag .. sep .. tostring(nx))
 return tostring(nx)
-";
+");
 
-        var result = await Db.ScriptEvaluateAsync(
-            script,
-            new RedisKey[] { key },
-            new RedisValue[] { field, value, LongTypeTag }).ConfigureAwait(false);
+    /// <inheritdoc />
+    public async Task<long> IncrementAsync(string key, string field, long value = 1, TimeSpan? expire = null, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        RedisResult result;
+        try
+        {
+            result = await Db.ScriptEvaluateAsync(
+                IncrementScript,
+                new { key = (RedisKey)key, field = (RedisValue)field, delta = (RedisValue)value, typeTag = (RedisValue)LongTypeTag })
+                .ConfigureAwait(false);
+        }
+        catch (RedisServerException ex) when (ex.Message.Contains("CJORA_INC_OVERFLOW", StringComparison.Ordinal))
+        {
+            throw new OverflowException(
+                $"RedisHashMapService.IncrementAsync result exceeds 2^53 precision limit (key={key}, field={field}).", ex);
+        }
 
         var str = result.ToString();
         if (!long.TryParse(str, NumberStyles.Integer, CultureInfo.InvariantCulture, out var next))
             throw new InvalidOperationException($"Unexpected IncrementAsync result from Lua: {str}");
 
-        await ApplyExpireIfMissingAsync(key, expire: null).ConfigureAwait(false);
+        await ApplyExpireIfMissingAsync(key, expire).ConfigureAwait(false);
         return next;
     }
 

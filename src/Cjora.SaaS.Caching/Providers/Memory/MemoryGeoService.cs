@@ -11,7 +11,8 @@ namespace Cjora.SaaS.Caching.Providers;
 /// <para><b>并发正确性：</b>每个 Key 对应一个 <see cref="GeoMemberMap"/>，使用 <see cref="ConcurrentDictionary{TKey,TValue}.GetOrAdd(TKey,Func{TKey,TValue})"/>
 /// 保证同一进程内<b>至多只有一个</b> container 实例（即便工厂被并发调用，只有一次结果被保留），根除了
 /// 原 <c>IMemoryCache.GetOrCreate</c> "多个 first-writer 各造一个 map，后写覆盖前写丢成员" 的致命 bug。</para>
-/// <para><b>TTL：</b>每次 AddOrUpdate 记录 ExpireAt；读取时检查是否过期，过期则移除（懒过期）。没有后台扫描线程。</para>
+/// <para><b>TTL：</b>仅在 Key 首次创建时设置过期时间，后续 AddOrUpdate <b>不</b>续租（与 <see cref="RedisGeoService"/> 的
+/// <c>ExpireWhen.HasNoExpiry</c> 行为对齐，避免热写入 key 永不过期）；读取时检查过期则移除（懒过期）。</para>
 /// <para>单 Key 成员数上限由 <see cref="MemoryCacheLimitsOptions.GeoMaxMembersPerKey"/> 控制，
 /// 超限行为由 <see cref="MemoryCacheLimitsOptions.OverflowPolicy"/> 决定：</para>
 /// <list type="bullet">
@@ -45,7 +46,7 @@ public sealed class MemoryGeoService : IGeoService
 
         lock (map.SyncRoot)
         {
-            map.ExpireAt = DateTime.UtcNow + ttl;
+            // 与 RedisGeoService 对齐：TTL 只在 GetOrCreate 里首次创建时设置，此处不续租。
             map.AddOrUpdate(
                 key,
                 member,
@@ -88,6 +89,22 @@ public sealed class MemoryGeoService : IGeoService
             .ToArray();
 
         return Task.FromResult<IReadOnlyList<GeoSearchResult>>(list);
+    }
+
+    /// <summary>清理所有 ExpireAt &lt;= now 的容器条目，供后台 reaper 调用。</summary>
+    internal void SweepExpired()
+    {
+        var now = DateTime.UtcNow;
+        foreach (var kv in _maps)
+        {
+            bool expired;
+            lock (kv.Value.SyncRoot)
+            {
+                expired = kv.Value.ExpireAt <= now;
+            }
+            if (expired)
+                _maps.TryRemove(new KeyValuePair<string, GeoMemberMap>(kv.Key, kv.Value));
+        }
     }
 
     private GeoMemberMap GetOrCreate(string key, TimeSpan ttl)

@@ -10,9 +10,10 @@ namespace Cjora.SaaS.Caching.Providers;
 
 /// <summary>基于 Redis STRING 命令的缓存实现，值以 JSON 序列化存储。</summary>
 /// <remarks>
-/// <para><b>反序列化自愈：</b><see cref="GetAsync{T}"/> 遇到脏数据（JsonException）时会记录日志、
-/// 打点 <c>cjora.cache.deserialization_errors</c>、<c>DEL</c> 该 key 并返回 <c>default</c>，
-/// 避免"同一坏值每次读都抛异常"。</para>
+/// <para><b>反序列化自愈（带单飞）：</b><see cref="GetAsync{T}"/> 遇到脏数据（JsonException）时会记录日志、
+/// 打点 <c>cjora.cache.deserialization_errors</c>，并通过
+/// <c>SET {key}:__heal__ 1 EX 5 NX</c> 做跨实例单飞：同一 5 秒窗口内只有一个实例真正执行 <c>DEL</c>，
+/// 其余实例读到 default 直接返回 —— 避免 N 个实例同时删除 + 同时回源 DB 的二次 thundering herd。</para>
 /// </remarks>
 public sealed class RedisCacheService : ICachingService
 {
@@ -63,17 +64,32 @@ public sealed class RedisCacheService : ICachingService
         {
             CacheMetrics.DeserializationErrors.Add(1, CacheMetrics.Provider(ProviderName), CacheMetrics.Op("get"));
             _logger.LogWarning(ex,
-                "RedisCacheService GetAsync<{Type}> deserialization failed; auto-healing by deleting Key={Key}.",
+                "RedisCacheService GetAsync<{Type}> deserialization failed; auto-healing Key={Key}.",
                 typeof(T).FullName, key);
-            try
-            {
-                await Db.KeyDeleteAsync(key).ConfigureAwait(false);
-            }
-            catch (Exception delEx)
-            {
-                _logger.LogWarning(delEx, "Auto-heal delete failed. Key={Key}", key);
-            }
+            await SelfHealAsync(key).ConfigureAwait(false);
             return default;
+        }
+    }
+
+    /// <summary>
+    /// 跨实例单飞的自愈删除：避免 N 个实例同时观测到脏数据 → 同时 <c>DEL</c> → 同时回源 DB 的二次雪崩。
+    /// 通过 <c>SET :{key}:__heal__ "1" EX 5 NX</c> 抢占权，只有抢到锁的实例执行 <c>DEL</c>。
+    /// </summary>
+    private async Task SelfHealAsync(string key)
+    {
+        var healKey = key + ":__heal__";
+        try
+        {
+            var won = await Db.StringSetAsync(
+                healKey, "1", TimeSpan.FromSeconds(5), when: When.NotExists).ConfigureAwait(false);
+            if (!won)
+                return;
+
+            await Db.KeyDeleteAsync(key).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Auto-heal delete failed. Key={Key}", key);
         }
     }
 

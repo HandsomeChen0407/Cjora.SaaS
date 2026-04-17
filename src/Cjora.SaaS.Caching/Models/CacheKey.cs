@@ -32,6 +32,13 @@ public readonly partial struct CacheKey : IEquatable<CacheKey>
     /// <summary>所属业务模块（参与按模块 TTL 选择）。</summary>
     public string Module { get; }
 
+    /// <summary>
+    /// 校验给定字符串是否符合 <see cref="Module"/> 命名规范（供 <see cref="CacheOptionsValidator"/> 对
+    /// <c>ModuleExpireMinutes</c> 的 key 做严格匹配，防止大小写 / 特殊字符导致的"配了不生效"）。
+    /// </summary>
+    public static bool IsValidModule(string? module)
+        => !string.IsNullOrEmpty(module) && ModulePattern.IsMatch(module!);
+
     internal CacheKey(string value, string module)
     {
         if (string.IsNullOrWhiteSpace(value))

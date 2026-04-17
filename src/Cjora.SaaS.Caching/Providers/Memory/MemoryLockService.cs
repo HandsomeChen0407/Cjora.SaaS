@@ -55,6 +55,22 @@ public sealed class MemoryLockService : ILockService
         return Task.FromResult<ILockHandle?>(null);
     }
 
+    /// <summary>
+    /// 清理所有已过期的 lock entry，供后台 <see cref="Internal.MemoryExpirationReaper"/> 调用，
+    /// 防止"TTL 过期但 key 再也没被请求"导致 <see cref="_locks"/> 长期膨胀的慢内存泄漏。
+    /// </summary>
+    internal void SweepExpired()
+    {
+        var now = DateTime.UtcNow;
+        foreach (var kv in _locks)
+        {
+            if (kv.Value.ExpireAt <= now)
+            {
+                ((ICollection<KeyValuePair<string, LockEntry>>)_locks).Remove(kv);
+            }
+        }
+    }
+
     private sealed record LockEntry(string Token, DateTime ExpireAt);
 
     private sealed class Handle(ConcurrentDictionary<string, LockEntry> locks, string key, string token) : ILockHandle

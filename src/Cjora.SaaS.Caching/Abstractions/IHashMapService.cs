@@ -28,8 +28,15 @@ public interface IHashMapService
     /// <summary>判断字段是否存在（HEXISTS）。</summary>
     Task<bool> FieldExistsAsync(string key, string field, CancellationToken cancellationToken = default);
 
-    /// <summary>对字段做原子自增（HINCRBY）。</summary>
-    Task<long> IncrementAsync(string key, string field, long value = 1, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// 对字段做原子自增（HINCRBY 语义）。
+    /// <para><b>溢出保护：</b>当 <paramref name="value"/> 或现值超过 <c>2^53-1</c>（JavaScript / Redis Lua 的 double 精度边界）
+    /// 时，Memory 实现会抛 <see cref="OverflowException"/>，Redis Lua 会返回 <c>ERR</c> 由客户端转换为 <see cref="InvalidOperationException"/>，
+    /// 杜绝"看起来递增成功但数值已失真"。</para>
+    /// <para><b>TTL：</b>可选，仅在 Key 首次创建时生效（与 <c>ExpireWhen.HasNoExpiry</c> 对齐）；
+    /// 版本号 / 序列号这类长期存活键应显式传入 30 天等长 TTL。</para>
+    /// </summary>
+    Task<long> IncrementAsync(string key, string field, long value = 1, TimeSpan? expire = null, CancellationToken cancellationToken = default);
 
     /// <summary>删除整个 Hash Key。</summary>
     Task RemoveAsync(string key, CancellationToken cancellationToken = default);

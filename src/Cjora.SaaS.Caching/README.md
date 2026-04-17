@@ -38,11 +38,51 @@ if (value is not null) return value;
 value = await LoadFromDbAsync();
 await cache.SetAsync(key, value);
 
-// 写：Bump 版本号
+// 写：Bump 版本号（原子 HINCRBY；不依赖本机时钟，规避多机钟差造成的版本号倒退）
 await versionStore.BumpPermVersionAsync(tenantId);
 // 旧 key 继续被 TTL 清理；新请求自动拿到新版本号 → 读到新 key → 落空 → 回源
 await cache.InvalidateAsync(verKey);  // 可选：主动通知外部 L1 观察者
 ```
+
+### 版本号 Bump 的放大效应（运维必读）
+
+版本号 Bump 是"租户维度一次性作废所有相关缓存"，效果等同于局部缓存雪崩：
+
+- 触发后，该 tenant 下所有相关 key 都会落到冷启动；
+- 若该 tenant 在线用户 N 很大，第 N 个读请求会集中回源 DB，形成**局部 thundering herd**；
+- `CachingEffectivePermissionResolver` / `CachingDataPermissionResolver` 已经用 `ILockService` 做了**单飞保护**，未抢到锁的请求会直接重算一次（不写入）——这在 tenant 内的并发读会降为 DB 单位时间 1~2 次；
+- **其它新增的"读-回源"业务如果没加 lock**，Bump 后在高并发 tenant 上仍会打爆 DB。写这类代码时请 review：`GetAsync` miss → `LoadFromDb` 中间必须有 `ILockService.TryAcquireAsync`。
+
+### `SetAsync` 与 `RemoveAsync` 的顺序语义（并发调用请注意）
+
+`SetAsync` 与 `RemoveAsync` 是两条独立请求，在跨实例并发时存在经典的 "write-after-delete" 窗口：
+
+```
+t0  Instance A: reads from DB → gets OLD value, prepares SetAsync(key, OLD)
+t1  Instance B: writes to DB (updates row)
+t2  Instance B: RemoveAsync(key)
+t3  Instance A: SetAsync(key, OLD)   ← 把刚被清掉的 key 写回了旧值
+```
+
+缓存里会短暂保留 OLD 值直到 TTL 过期。这是**所有 cache-aside 模式共有的**固有问题，本模块**不**在这一层做解决（做了反而会把 Remove 性能压垮）。正确的解法是：
+
+1. **首选**：走版本号 Key 模式——写路径只 Bump 版本号，读路径按新版本组 Key，根本不存在"写回旧值"的 key；
+2. **次选**：写路径 Remove 后延迟 DTTL 再 Remove 一次（double-delete），牺牲一些延迟换取窗口收敛；
+3. **强要求**：调用 `ICacheManager.RemoveWithBroadcastAsync` 让失效广播失败时向业务抛出（见下）。
+
+### `RemoveAsync` vs `RemoveWithBroadcastAsync` vs `InvalidateAsync`（错误语义对齐）
+
+| API | 是否删底层 | 是否广播 | 广播失败时 |
+|-----|-----------|---------|-----------|
+| `ICacheManager.RemoveAsync` | ✅ | ✅ | **best-effort**（仅日志+打点，不抛） |
+| `ICacheManager.RemoveWithBroadcastAsync` | ✅ | ✅ | **严格**（向业务抛出） |
+| `ICacheManager.InvalidateAsync` | ❌ | ✅ | **严格**（向业务抛出） |
+| `ICachingService.RemoveAsync` | ✅ | ❌ | 不适用（不广播） |
+
+**选型建议：**
+- 普通业务删除 → `RemoveAsync`（避免因 bus 临时抖动把业务也带崩）；
+- 权限下沉 / 风控标记这类"失效必须下发" → `RemoveWithBroadcastAsync`，业务可据失败重试；
+- 版本号 Bump 后只是想通知外部 L1 → `InvalidateAsync`。
 
 ---
 
@@ -212,7 +252,9 @@ public sealed class MyL1InvalidationSubscriber : IHostedService
 | `SetIfAbsentAsync` | 私有 `_writeGate` 锁覆盖所有写路径，**进程内原子** | Redis 原生 `SET NX PX` 原子 |
 | `ILockService` | Token + `ConcurrentDictionary` 原子获取，Dispose 按 token 校验释放 | SET NX PX + Lua 释放 + `PeriodicTimer` 续租 + `LockLost` |
 | `ILockHandle.LockLost` | 永远 `None` | 续租失败 / 锁已丢时 Cancel |
-| GEO / HashMap TTL | 单 key 一次设置（写入续租） | TTL 仅在 key 无过期时设置（`ExpireWhen.HasNoExpiry`） |
+| GEO / HashMap TTL | **仅在 Key 首次创建时设置**（与 Redis 对齐，避免热写永不过期） | TTL 仅在 key 无过期时设置（`ExpireWhen.HasNoExpiry`） |
+| 过期条目清理 | 后台 `MemoryExpirationReaper` 每分钟扫描 + 惰性过期双管 | Redis 引擎自持 |
+| 多实例一致性 | ❌ **进程内语义**；容器集群下 `Lock`/`SetIfAbsent`/`InvalidationBus` 都失效，启动时会发出告警日志 | ✅ 跨实例 |
 | GEO / HashMap 容量上限 | 受 `MemoryCacheLimitsOptions` 控制，超限按 `OverflowPolicy` | 无（按 Redis 存储配额） |
 | 脏数据 | 记录 + 打点 + 返回 `default` | 记录 + 打点 + **DEL 自愈**（不再重复抛） |
 
@@ -234,7 +276,10 @@ public sealed class MyL1InvalidationSubscriber : IHostedService
 | `cjora.cache.locks_lost` | Counter | 同上 | 续租检测到锁已丢（仅 Redis） |
 | `cjora.cache.evicted_overflow` | Counter | `cjora.cache.provider`, `cjora.cache.op` | Memory 溢出淘汰次数 |
 
-生产排障关注：`invalidation_publish_failures` 与 `locks_lost`——前者意味着外部 L1 可能 stale，后者意味着临界区业务可能并发执行。
+生产排障关注：
+- `invalidation_publish_failures`（尤其 `op=enqueue-drop`）：外部 L1 失效被丢，可能 stale；
+- `locks_lost`：续租检测到本 handle 已失去锁归属，临界区业务可能与他实例并发；
+- `deserialization_errors` 在短时间内剧增：通常是序列化格式升级；Redis 端有 `:__heal__` 单飞锁，不会二次雪崩。
 
 ---
 
@@ -252,4 +297,7 @@ public sealed class MyL1InvalidationSubscriber : IHostedService
 | 持长锁后不监听 `LockLost` | 续租失败仍在临界区，可能与他人并发 | `CancellationTokenSource.CreateLinkedTokenSource(ct, handle.LockLost)` |
 | 不 `await using` 释放 `ILockHandle` | 续租任务继续、锁直到 TTL 才释放 | 始终 `await using var handle = ...` |
 | `ICacheInvalidationBus.SubscribeAsync` 回调中做重活 | 阻塞 Pub/Sub 接收线程 | 回调中仅做轻量操作，重任务入队异步处理 |
-| Memory 模式下跨进程依赖 Bus | 进程内总线不跨进程 | 多实例部署必须切换 `Provider=Redis` |
+| Memory 模式下跨进程依赖 Bus | 进程内总线不跨进程 | 多实例部署必须切换 `Provider=Redis`；本模块会在启动时检测集群环境并告警 |
+| 运行期通过 configmap 热更 `KeyPrefix` / `InvalidationChannel` / `Provider` / `Redis:Configuration` | 已建立的连接 / 订阅不重绑 → 新旧前缀错位或 Pub/Sub 静默脱钩 | 走滚动重启；运行期变更会触发 `CacheOptionsRuntimeGuard` 告警日志 |
+| 用 `IHashMapService.IncrementAsync` 做大于 2<sup>53</sup> 的计数（订单号 / 全局序列） | Memory 抛 `OverflowException`、Redis Lua 返回 `CJORA_INC_OVERFLOW` 被翻译为 `OverflowException` | 确实需要巨大计数请拆位或换方案（例如分桶 + `long`） |
+| 依赖 `SysSecurityCacheVersionStore.BumpXxx` 的返回值 | 当前实现为 `Task`，不返回新版本号；新版本号通过 `GetXxxVersion` 在下次读路径自然拿到 | 不要依赖 Bump 的返回值做业务联动 |

@@ -19,6 +19,8 @@ namespace Cjora.SaaS.Caching.Providers;
 /// 不匹配直接抛 <see cref="CacheTypeMismatchException"/>，避免"先写 int 后读 string 刚好 JSON 兼容"的静默类型污染。</para>
 /// <para><b>容量控制：</b>单 Key 字段数上限 <see cref="MemoryCacheLimitsOptions.HashMapMaxFieldsPerKey"/>，
 /// 超限策略由 <see cref="MemoryCacheLimitsOptions.OverflowPolicy"/> 决定（默认 <c>Throw</c>）。</para>
+/// <para><b>TTL 语义（与 Redis 对齐）：</b>仅在 Key 首次创建时设置过期时间，后续字段写入<b>不</b>续租，
+/// 与 <see cref="RedisHashMapService"/> 的 <c>ExpireWhen.HasNoExpiry</c> 行为一致，避免热写入 key 永不过期。</para>
 /// </remarks>
 public sealed class MemoryHashMapService : IHashMapService
 {
@@ -140,16 +142,31 @@ public sealed class MemoryHashMapService : IHashMapService
     }
 
     /// <inheritdoc />
-    public Task<long> IncrementAsync(string key, string field, long value = 1, CancellationToken cancellationToken = default)
+    public Task<long> IncrementAsync(string key, string field, long value = 1, TimeSpan? expire = null, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
         var opts = Options;
-        var dict = GetOrCreate(key, CacheOptions.ClampTtl(TimeSpan.FromMinutes(opts.DefaultExpireMinutes)));
+        var ttl = expire ?? CacheOptions.ClampTtl(TimeSpan.FromMinutes(opts.DefaultExpireMinutes));
+        var dict = GetOrCreate(key, ttl);
         lock (dict.SyncRoot)
         {
             var current = dict.TryGet(field);
             var currentLong = ExtractLong(current);
-            var next = currentLong + value;
+            // checked 算术：溢出即抛 OverflowException，与 Redis Lua 路径的防御一致，
+            // 杜绝"long.MaxValue + 1 → long.MinValue"的静默 wrap-around。
+            long next;
+            checked
+            {
+                next = currentLong + value;
+            }
+
+            // 精度安全阈值：IEEE 754 double 可精确表达的最大整数 = 2^53 - 1（= 9_007_199_254_740_992）。
+            // 超出此阈值后 Redis Lua 的 tonumber 会丢精度，为保持跨 provider 一致行为，此处也拒绝。
+            const long SafeIntegerMax = 9_007_199_254_740_992L;
+            if (next > SafeIntegerMax || next < -SafeIntegerMax)
+                throw new OverflowException(
+                    $"MemoryHashMapService.IncrementAsync result {next} exceeds 2^53 precision limit (key={key}, field={field}).");
+
             var packed = $"{LongTypeTag}{TypeTagSeparator}{next.ToString(CultureInfo.InvariantCulture)}";
 
             // 先写后返回：容量溢出且策略=Throw 时抛异常，调用方感知"递增未落地"，杜绝"值已改但持久化失败"假象。
@@ -166,6 +183,22 @@ public sealed class MemoryHashMapService : IHashMapService
         return Task.CompletedTask;
     }
 
+    /// <summary>清理所有 ExpireAt &lt;= now 的容器条目，供后台 reaper 调用。</summary>
+    internal void SweepExpired()
+    {
+        var now = DateTime.UtcNow;
+        foreach (var kv in _stores)
+        {
+            bool expired;
+            lock (kv.Value.SyncRoot)
+            {
+                expired = kv.Value.ExpireAt <= now;
+            }
+            if (expired)
+                _stores.TryRemove(new KeyValuePair<string, HashFieldStore>(kv.Key, kv.Value));
+        }
+    }
+
     private HashFieldStore GetOrCreate(string key, TimeSpan ttl)
     {
         while (true)
@@ -175,8 +208,8 @@ public sealed class MemoryHashMapService : IHashMapService
             {
                 if (store.ExpireAt > DateTime.UtcNow)
                 {
-                    // 写入路径顺手续一下 TTL（与 Redis 实现的"写入续租"语义对齐）。
-                    store.ExpireAt = DateTime.UtcNow + ttl;
+                    // 与 RedisHashMapService 的 ExpireWhen.HasNoExpiry 对齐：只在首次创建时设置 TTL，
+                    // 已存在的 key 在后续字段写入时不再续租，避免热写入 key 永远不过期。
                     return store;
                 }
 

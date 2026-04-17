@@ -80,6 +80,16 @@ public sealed class CacheManager : ICacheManager
     }
 
     /// <inheritdoc />
+    public async Task RemoveWithBroadcastAsync(CacheKey key, CancellationToken cancellationToken = default)
+    {
+        key.EnsureValid();
+        var full = ApplyPrefix(key);
+        await _cache.RemoveAsync(full, cancellationToken).ConfigureAwait(false);
+        // 严格广播：失败向业务抛出，不再 safe-swallow。
+        await _bus.PublishAsync(full, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
     public Task InvalidateAsync(CacheKey key, CancellationToken cancellationToken = default)
     {
         key.EnsureValid();

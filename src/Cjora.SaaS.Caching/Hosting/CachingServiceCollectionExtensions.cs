@@ -1,8 +1,10 @@
 ﻿using Cjora.SaaS.Caching.Abstractions;
+using Cjora.SaaS.Caching.Internal;
 using Cjora.SaaS.Caching.Models;
 using Cjora.SaaS.Caching.Providers;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using StackExchange.Redis;
 
@@ -53,21 +55,41 @@ public static class CachingServiceCollectionExtensions
                 return ConnectionMultiplexer.Connect(cfg);
             });
             services.AddSingleton<ICachingService, RedisCacheService>();
-            services.AddSingleton<ILockService, RedisLockService>();
+            services.AddSingleton<RedisLockService>();
+            services.AddSingleton<ILockService>(sp =>
+                new PrefixedLockService(
+                    sp.GetRequiredService<RedisLockService>(),
+                    sp.GetRequiredService<IOptionsMonitor<CacheOptions>>()));
             services.AddSingleton<IGeoService, RedisGeoService>();
             services.AddSingleton<IHashMapService, RedisHashMapService>();
             services.AddSingleton<ICacheInvalidationBus, RedisCacheInvalidationBus>();
+            services.AddHostedService<RedisCacheInvalidationBusSubscribeHost>();
         }
         else
         {
             services.AddSingleton<ICachingService, MemoryCacheService>();
-            services.AddSingleton<ILockService, MemoryLockService>();
-            services.AddSingleton<IGeoService, MemoryGeoService>();
-            services.AddSingleton<IHashMapService, MemoryHashMapService>();
+            services.AddSingleton<MemoryLockService>();
+            services.AddSingleton<ILockService>(sp =>
+                new PrefixedLockService(
+                    sp.GetRequiredService<MemoryLockService>(),
+                    sp.GetRequiredService<IOptionsMonitor<CacheOptions>>()));
+            services.AddSingleton<MemoryGeoService>();
+            services.AddSingleton<IGeoService>(sp => sp.GetRequiredService<MemoryGeoService>());
+            services.AddSingleton<MemoryHashMapService>();
+            services.AddSingleton<IHashMapService>(sp => sp.GetRequiredService<MemoryHashMapService>());
             services.AddSingleton<ICacheInvalidationBus, MemoryCacheInvalidationBus>();
+            services.AddHostedService<MemoryExpirationReaper>();
         }
 
         services.AddSingleton<ICacheManager, CacheManager>();
+
+        // 启动期守卫：Memory Provider 多副本告警 + 运行期配置变更告警。
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<
+            Microsoft.Extensions.Hosting.IHostedService,
+            MemoryProviderMultiInstanceWarning>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<
+            Microsoft.Extensions.Hosting.IHostedService,
+            CacheOptionsRuntimeGuard>());
 
         return services;
     }
