@@ -1,57 +1,184 @@
 ﻿using Cjora.SaaS.Caching.Abstractions;
+using Cjora.SaaS.Caching.Internal;
 using Cjora.SaaS.Caching.Models;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using StackExchange.Redis;
 
 namespace Cjora.SaaS.Caching.Providers;
 
-/// <summary>基于 Redis SET NX PX + Lua 安全释放的分布式锁实现。</summary>
+/// <summary>基于 Redis SET NX PX + Lua 安全释放的分布式锁实现，支持后台自动续租。</summary>
+/// <remarks>
+/// <para><b>Dispose 顺序：</b><c>lockLostCts.Cancel()</c> → <c>timer.Dispose()</c> → 等待续租 Task（最长
+/// <see cref="LockOptions.DisposeWaitTimeoutMs"/>）→ <c>ReleaseScript</c> → 最后才 <c>lockLostCts.Dispose()</c>。
+/// 任何业务持有的 <see cref="ILockHandle.LockLost"/> token 在 Release 完成前始终可用，不会 <see cref="ObjectDisposedException"/>。</para>
+/// <para><b>未解决的已知限制（文档化，不在代码层修复）：</b>Redis 网络分区场景下"本地认为持锁、实际已被他人获取"无法 100% 避免。
+/// 业务 <b>必须</b> 在 <see cref="ILockHandle.LockLost"/> 上挂载取消，临界区代码可被中止。</para>
+/// </remarks>
 public sealed class RedisLockService : ILockService
 {
     private const string ReleaseScript =
         "if redis.call('GET', KEYS[1]) == ARGV[1] then return redis.call('DEL', KEYS[1]) else return 0 end";
 
-    private readonly IConnectionMultiplexer _mux;
-    private readonly CacheOptions _options;
+    private const string RenewScript =
+        "if redis.call('GET', KEYS[1]) == ARGV[1] then return redis.call('PEXPIRE', KEYS[1], ARGV[2]) else return 0 end";
 
-    public RedisLockService(IConnectionMultiplexer mux, IOptions<CacheOptions> options)
+    private readonly IConnectionMultiplexer _mux;
+    private readonly IOptionsMonitor<CacheOptions> _optionsMonitor;
+    private readonly ILogger<RedisLockService> _logger;
+
+    /// <summary>DI 构造。</summary>
+    public RedisLockService(
+        IConnectionMultiplexer mux,
+        IOptionsMonitor<CacheOptions> optionsMonitor,
+        ILogger<RedisLockService> logger)
     {
         _mux = mux;
-        _options = options.Value;
+        _optionsMonitor = optionsMonitor;
+        _logger = logger;
     }
 
-    private IDatabase Db => _mux.GetDatabase(_options.Redis.Database);
+    private CacheOptions Options => _optionsMonitor.CurrentValue;
 
+    private IDatabase Db => _mux.GetDatabase(Options.Redis.Database);
+
+    /// <inheritdoc />
     public async Task<ILockHandle?> TryAcquireAsync(string key, TimeSpan ttl, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         if (string.IsNullOrWhiteSpace(key))
             return null;
+        if (ttl <= TimeSpan.Zero)
+            throw new ArgumentOutOfRangeException(nameof(ttl), "Lock TTL must be positive.");
 
         var token = Guid.NewGuid().ToString("N");
         var ok = await Db.StringSetAsync(key, token, ttl, when: When.NotExists).ConfigureAwait(false);
-        return ok ? new Handle(Db, key, token) : null;
+        if (!ok)
+        {
+            CacheMetrics.LocksContended.Add(1, CacheMetrics.Provider("Redis"));
+            return null;
+        }
+
+        CacheMetrics.LocksAcquired.Add(1, CacheMetrics.Provider("Redis"));
+        return new Handle(Db, key, token, ttl, Options.Lock, _logger);
     }
 
-    private sealed class Handle(IDatabase db, string key, string token) : ILockHandle
+    /// <summary>
+    /// 锁句柄：通过 <see cref="PeriodicTimer"/> 做可控续租；续租返回 0（锁已不归属本 handle）时
+    /// 立即 Cancel <see cref="LockLost"/>，业务可据此中止临界区。
+    /// </summary>
+    private sealed class Handle : ILockHandle
     {
+        private readonly IDatabase _db;
+        private readonly long _ttlMs;
+        private readonly string _token;
+        private readonly ILogger _logger;
+        private readonly int _disposeWaitMs;
+        private readonly PeriodicTimer? _timer;
+        private readonly Task? _renewTask;
+        private readonly CancellationTokenSource? _lockLostCts;
         private int _disposed;
 
-        public string Key { get; } = key;
+        public string Key { get; }
+
+        public CancellationToken LockLost => _lockLostCts?.Token ?? CancellationToken.None;
+
+        public Handle(IDatabase db, string key, string token, TimeSpan ttl, LockOptions lockOptions, ILogger logger)
+        {
+            _db = db;
+            Key = key;
+            _token = token;
+            _ttlMs = (long)ttl.TotalMilliseconds;
+            _logger = logger;
+            _disposeWaitMs = Math.Max(100, lockOptions.DisposeWaitTimeoutMs);
+
+            if (!lockOptions.EnableAutoRenewal || ttl <= TimeSpan.FromSeconds(1))
+                return;
+
+            var ratio = Math.Clamp(
+                lockOptions.RenewalIntervalRatio,
+                LockOptions.MinRenewalIntervalRatio,
+                LockOptions.MaxRenewalIntervalRatio);
+            var intervalMs = Math.Max(200, ttl.TotalMilliseconds * ratio);
+
+            _lockLostCts = new CancellationTokenSource();
+            _timer = new PeriodicTimer(TimeSpan.FromMilliseconds(intervalMs));
+            // 先构造 PeriodicTimer 再启动任务，保证 _timer 对 RenewLoopAsync 可见。
+            _renewTask = Task.Run(() => RenewLoopAsync(_timer, _lockLostCts));
+        }
+
+        private async Task RenewLoopAsync(PeriodicTimer timer, CancellationTokenSource lockLostCts)
+        {
+            try
+            {
+                while (await timer.WaitForNextTickAsync().ConfigureAwait(false))
+                {
+                    try
+                    {
+                        var result = (long)await _db.ScriptEvaluateAsync(
+                            RenewScript,
+                            new RedisKey[] { Key },
+                            new RedisValue[] { _token, _ttlMs }).ConfigureAwait(false);
+
+                        if (result == 0)
+                        {
+                            _logger.LogWarning("Lock ownership lost during renewal. Key={Key}", Key);
+                            CacheMetrics.LocksLost.Add(1, CacheMetrics.Provider("Redis"));
+                            lockLostCts.Cancel();
+                            return;
+                        }
+                    }
+                    catch (Exception ex) when (ex is not OperationCanceledException)
+                    {
+                        _logger.LogWarning(ex, "Lock renewal transient failure, will retry. Key={Key}", Key);
+                        // 瞬时异常不取消 LockLost，等下一次 tick 再尝试；TTL 会兜底。
+                    }
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                // timer.Dispose() 会让 WaitForNextTickAsync 返回 false；保留 catch 以防万一。
+            }
+        }
 
         public async ValueTask DisposeAsync()
         {
             if (Interlocked.Exchange(ref _disposed, 1) == 1)
                 return;
 
+            // 1) 停止续租 timer；等待续租任务退出（最长 DisposeWaitTimeoutMs），避免 Redis 卡死时阻塞进程 shutdown。
+            _timer?.Dispose();
+            if (_renewTask is not null)
+            {
+                try
+                {
+                    var completed = await Task
+                        .WhenAny(_renewTask, Task.Delay(_disposeWaitMs))
+                        .ConfigureAwait(false);
+                    if (completed != _renewTask)
+                        _logger.LogWarning(
+                            "Lock renewal loop did not exit within {TimeoutMs}ms during Dispose. Key={Key}",
+                            _disposeWaitMs, Key);
+                }
+                catch
+                {
+                    // 续租任务异常已在内部记录，不再级联。
+                }
+            }
+
+            // 2) 释放 Redis 锁（Lua 原子比较 token + DEL），即使 Redis 慢也容忍其自然超时。
             try
             {
-                await db.ScriptEvaluateAsync(ReleaseScript, new RedisKey[] { Key }, new RedisValue[] { token })
+                await _db.ScriptEvaluateAsync(ReleaseScript, new RedisKey[] { Key }, new RedisValue[] { _token })
                     .ConfigureAwait(false);
             }
-            catch
+            catch (Exception ex)
             {
-                // 锁 TTL 兜底，释放失败不影响业务。
+                _logger.LogWarning(ex, "Lock release failed (TTL will fall back). Key={Key}", Key);
             }
+
+            // 3) 最后才 Dispose CTS——整个 Dispose 过程 LockLost 仍可安全监听。
+            _lockLostCts?.Dispose();
         }
     }
 }

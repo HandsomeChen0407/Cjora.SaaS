@@ -2,7 +2,7 @@
 
 /// <summary>
 /// Hash（字典）结构缓存抽象，对应 Redis HASH 数据类型。
-/// Memory 实现使用 ConcurrentDictionary 模拟，Redis 实现映射 HSET / HGET / HDEL / HGETALL / HINCRBY。
+/// Memory 实现使用自维护 <c>ConcurrentDictionary</c>，Redis 实现映射 HSET / HGET / HDEL / HGETALL / HINCRBY。
 /// </summary>
 public interface IHashMapService
 {
@@ -15,8 +15,12 @@ public interface IHashMapService
     /// <summary>获取单个字段（HGET）。</summary>
     Task<T?> GetFieldAsync<T>(string key, string field, CancellationToken cancellationToken = default);
 
-    /// <summary>获取所有字段与值（HGETALL）。</summary>
-    Task<Dictionary<string, T>> GetAllAsync<T>(string key, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// 获取所有字段与值（HGETALL）。
+    /// <para><b>保留 null 语义：</b>若字段显式存了 <c>null</c> 或反序列化得到 <c>default</c>，仍会作为条目返回，
+    /// 调用方拿到的字典大小与 Redis 侧 HKEYS 一致，不会静默丢失。</para>
+    /// </summary>
+    Task<Dictionary<string, T?>> GetAllAsync<T>(string key, CancellationToken cancellationToken = default);
 
     /// <summary>删除一个或多个字段（HDEL）。</summary>
     Task RemoveFieldsAsync(string key, IEnumerable<string> fields, CancellationToken cancellationToken = default);
