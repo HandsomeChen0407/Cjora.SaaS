@@ -8,7 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace Cjora.SaaS.Sys.Api.Controllers;
 
 [ApiController]
-[Route("api/auth")]
+[Route("api/sys/auth")]
 public sealed class AuthController : ControllerBase
 {
     private readonly IUserAppService _users;

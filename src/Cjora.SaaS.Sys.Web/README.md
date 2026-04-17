@@ -36,14 +36,16 @@ Cjora.SaaS.Sys.Web
 
 | 控制器 | 路由 | 说明 |
 |--------|------|------|
-| `AuthController` | `POST /api/auth/login` | 用户登录，返回 JWT Token |
-| `MeController` | `GET /api/me` | 当前用户信息与权限码 |
-| `UsersController` | `/api/users` | 用户 CRUD |
-| `RolesController` | `/api/roles` | 角色管理 |
-| `DepartmentsController` | `/api/departments` | 部门树管理 |
-| `PermissionsController` | `/api/permissions` | 权限码定义管理 |
-| `DictTypesController` | `/api/dict-types` | 字典类型管理 |
-| `TenantsController` | `/api/tenants` | 租户管理（SuperAdmin） |
+| `AuthController` | `POST /api/sys/auth/login` | 用户登录，返回 JWT Token |
+| `MeController` | `GET /api/sys/me` | 当前用户信息与权限码 |
+| `UsersController` | `/api/sys/users` | 用户 CRUD |
+| `RolesController` | `/api/sys/roles` | 角色管理 |
+| `DepartmentsController` | `/api/sys/departments` | 部门树管理 |
+| `PermissionsController` | `/api/sys/permissions` | 权限码定义管理 |
+| `DictTypesController` | `/api/sys/dict-types` | 字典类型管理 |
+| `TenantsController` | `/api/sys/tenants` | 租户管理（SuperAdmin） |
+
+> **路由约定**：Sys 服务下所有控制器统一以 `/api/sys/` 为前缀，便于未来接入网关按 `/api/sys/**` 做前缀路由分流（其他服务如 `/api/crm/**`、`/api/pm/**` 同理）。
 
 ### 2. 功能权限（PermCode）
 
@@ -103,4 +105,4 @@ public class CrmCustomersController : ControllerBase
 | 不调用 `AddCjoraSysWebControllers()` 直接扫描 Controller | 宿主程序集中找不到 Controller 类 | 必须调用此方法注册程序集部件 |
 | `[AuthorizePermCode]` 的权限码与 `sys_permission` 表中定义不一致 | 运行时永远鉴权失败（Handler 找不到匹配码） | 权限码字符串须与数据库 `Code` 字段完全一致 |
 | JWT `Secret` 短于 32 字符 | `SymmetricSecurityKey` 不满足 HMAC-SHA256 最小密钥长度要求，启动时抛异常 | 生产环境使用随机生成的 64 字符以上密钥 |
-| 生产环境暴露 `/api/tenants` 而无 SuperAdmin 限制 | 任意已登录用户可管理租户 | 确保 `TenantsController` 加了 `[AuthorizePermCode("sys:tenants:manage")]` 且仅 SuperAdmin 拥有该权限 |
+| 生产环境暴露 `/api/sys/tenants` 而无 SuperAdmin 限制 | 任意已登录用户可管理租户 | 确保 `TenantsController` 加了 `[AuthorizePermCode("sys:tenants:manage")]` 且仅 SuperAdmin 拥有该权限 |

@@ -23,17 +23,17 @@ export interface UserRoleDto {
 
 export const usersApi = {
   getPaged: (pageNumber = 1, pageSize = 20) =>
-    api.get<ApiResult<PagedResponse<UserDto>>>(`/api/users?pageNumber=${pageNumber}&pageSize=${pageSize}`),
-  getById: (id: number) => api.get<ApiResult<UserDto>>(`/api/users/${id}`),
+    api.get<ApiResult<PagedResponse<UserDto>>>(`/api/sys/users?pageNumber=${pageNumber}&pageSize=${pageSize}`),
+  getById: (id: number) => api.get<ApiResult<UserDto>>(`/api/sys/users/${id}`),
   create: (data: Partial<UserDto> & { password?: string }) =>
-    api.post<ApiResult<UserDto>>("/api/users", data),
+    api.post<ApiResult<UserDto>>("/api/sys/users", data),
   update: (id: number, data: Partial<UserDto>) =>
-    api.put<ApiResult<UserDto>>(`/api/users/${id}`, data),
-  del: (id: number) => api.del(`/api/users/${id}`),
+    api.put<ApiResult<UserDto>>(`/api/sys/users/${id}`, data),
+  del: (id: number) => api.del(`/api/sys/users/${id}`),
   getRoles: (userId: number) =>
-    api.get<ApiResult<UserRoleDto[]>>(`/api/users/${userId}/roles`),
+    api.get<ApiResult<UserRoleDto[]>>(`/api/sys/users/${userId}/roles`),
   assignRole: (userId: number, roleId: number) =>
-    api.post(`/api/users/${userId}/roles`, { roleId }),
+    api.post(`/api/sys/users/${userId}/roles`, { roleId }),
   removeRole: (userId: number, roleId: number) =>
-    api.del(`/api/users/${userId}/roles/${roleId}`),
+    api.del(`/api/sys/users/${userId}/roles/${roleId}`),
 };

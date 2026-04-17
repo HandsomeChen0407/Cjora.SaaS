@@ -18,10 +18,10 @@ export interface PermissionTreeNode extends PermissionDto {
 }
 
 export const permissionsApi = {
-  getAll: () => api.get<ApiResult<PermissionDto[]>>("/api/permissions"),
-  getTree: () => api.get<ApiResult<PermissionTreeNode[]>>("/api/permissions/tree"),
-  getById: (id: number) => api.get<ApiResult<PermissionDto>>(`/api/permissions/${id}`),
-  create: (data: Partial<PermissionDto>) => api.post<ApiResult<PermissionDto>>("/api/permissions", data),
-  update: (id: number, data: Partial<PermissionDto>) => api.put<ApiResult<PermissionDto>>(`/api/permissions/${id}`, data),
-  del: (id: number) => api.del(`/api/permissions/${id}`),
+  getAll: () => api.get<ApiResult<PermissionDto[]>>("/api/sys/permissions"),
+  getTree: () => api.get<ApiResult<PermissionTreeNode[]>>("/api/sys/permissions/tree"),
+  getById: (id: number) => api.get<ApiResult<PermissionDto>>(`/api/sys/permissions/${id}`),
+  create: (data: Partial<PermissionDto>) => api.post<ApiResult<PermissionDto>>("/api/sys/permissions", data),
+  update: (id: number, data: Partial<PermissionDto>) => api.put<ApiResult<PermissionDto>>(`/api/sys/permissions/${id}`, data),
+  del: (id: number) => api.del(`/api/sys/permissions/${id}`),
 };

@@ -10,7 +10,7 @@ namespace Cjora.SaaS.Logging.Diagnostics;
 ///   <item><c>cjora.http.server.duration</c>：请求耗时毫秒直方图（Histogram）。</item>
 /// </list>
 /// Tag 维度固定为 <c>method / status_class / route</c>；<c>route</c> 为 ASP.NET Core 路由模板
-/// （形如 <c>/api/users/{id}</c>），不会含有具体 Id 值；<c>tenant_id / user_id</c> 等高基数字段严禁上 Tag。
+/// （形如 <c>/api/sys/users/{id}</c>），不会含有具体 Id 值；<c>tenant_id / user_id</c> 等高基数字段严禁上 Tag。
 /// </summary>
 public sealed class HttpRequestMetrics
 {

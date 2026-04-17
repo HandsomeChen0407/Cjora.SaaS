@@ -9,7 +9,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace Cjora.SaaS.Sys.Api.Controllers;
 
 [ApiController]
-[Route("api/permissions")]
+[Route("api/sys/permissions")]
 public sealed class PermissionsController : ControllerBase
 {
     private readonly IPermissionAppService _perms;

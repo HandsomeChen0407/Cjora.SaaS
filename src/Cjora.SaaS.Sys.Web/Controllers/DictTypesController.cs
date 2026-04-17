@@ -10,7 +10,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace Cjora.SaaS.Sys.Api.Controllers;
 
 [ApiController]
-[Route("api/dict-types")]
+[Route("api/sys/dict-types")]
 public sealed class DictTypesController : ControllerBase
 {
     private readonly IDictAppService _dicts;

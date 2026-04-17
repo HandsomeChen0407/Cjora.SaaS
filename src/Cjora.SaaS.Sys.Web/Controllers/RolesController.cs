@@ -10,7 +10,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace Cjora.SaaS.Sys.Api.Controllers;
 
 [ApiController]
-[Route("api/roles")]
+[Route("api/sys/roles")]
 public sealed class RolesController : ControllerBase
 {
     private readonly IRoleAppService _roles;

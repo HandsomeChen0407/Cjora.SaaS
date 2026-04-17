@@ -28,11 +28,11 @@ export interface DepartmentTreeNode {
 
 export const departmentsApi = {
   getPaged: (pageNumber = 1, pageSize = 20) =>
-    api.get<ApiResult<PagedResponse<DepartmentDto>>>(`/api/departments?pageNumber=${pageNumber}&pageSize=${pageSize}`),
+    api.get<ApiResult<PagedResponse<DepartmentDto>>>(`/api/sys/departments?pageNumber=${pageNumber}&pageSize=${pageSize}`),
   getTree: () =>
-    api.get<ApiResult<DepartmentTreeNode[]>>("/api/departments/tree"),
-  getById: (id: number) => api.get<ApiResult<DepartmentDto>>(`/api/departments/${id}`),
-  create: (data: Partial<DepartmentDto>) => api.post<ApiResult<DepartmentDto>>("/api/departments", data),
-  update: (id: number, data: Partial<DepartmentDto>) => api.put<ApiResult<DepartmentDto>>(`/api/departments/${id}`, data),
-  del: (id: number) => api.del(`/api/departments/${id}`),
+    api.get<ApiResult<DepartmentTreeNode[]>>("/api/sys/departments/tree"),
+  getById: (id: number) => api.get<ApiResult<DepartmentDto>>(`/api/sys/departments/${id}`),
+  create: (data: Partial<DepartmentDto>) => api.post<ApiResult<DepartmentDto>>("/api/sys/departments", data),
+  update: (id: number, data: Partial<DepartmentDto>) => api.put<ApiResult<DepartmentDto>>(`/api/sys/departments/${id}`, data),
+  del: (id: number) => api.del(`/api/sys/departments/${id}`),
 };

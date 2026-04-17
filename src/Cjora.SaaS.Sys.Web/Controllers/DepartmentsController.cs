@@ -10,7 +10,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace Cjora.SaaS.Sys.Api.Controllers;
 
 [ApiController]
-[Route("api/departments")]
+[Route("api/sys/departments")]
 public sealed class DepartmentsController : ControllerBase
 {
     private readonly IDepartmentAppService _departments;

@@ -38,7 +38,7 @@ export interface PermissionTreeNode {
 
 export const authApi = {
   login: (req: LoginRequest) =>
-    api.post<ApiResult<LoginResponse>>("/api/auth/login", req),
+    api.post<ApiResult<LoginResponse>>("/api/sys/auth/login", req),
   getMe: () =>
-    api.get<ApiResult<CurrentUser>>("/api/me"),
+    api.get<ApiResult<CurrentUser>>("/api/sys/me"),
 };

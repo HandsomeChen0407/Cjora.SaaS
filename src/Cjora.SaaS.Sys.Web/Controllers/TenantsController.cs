@@ -9,7 +9,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace Cjora.SaaS.Sys.Api.Controllers;
 
 [ApiController]
-[Route("api/tenants")]
+[Route("api/sys/tenants")]
 public sealed class TenantsController : ControllerBase
 {
     private readonly ISysTenantRepository _tenants;

@@ -102,7 +102,7 @@ dotnet run --project src/Cjora.SaaS.Sys.Api
 
 启动后：
 - Swagger UI：`http://localhost:{port}/swagger`
-- 登录接口：`POST /api/auth/login`
+- 登录接口：`POST /api/sys/auth/login`
 - 所有接口需要 `Authorization: Bearer {token}` + `X-Tenant-Id: {tenantCode}` Header
 
 ---
@@ -111,13 +111,13 @@ dotnet run --project src/Cjora.SaaS.Sys.Api
 
 ```bash
 # 1. 登录
-curl -X POST http://localhost:5000/api/auth/login \
+curl -X POST http://localhost:5000/api/sys/auth/login \
   -H "Content-Type: application/json" \
   -H "X-Tenant-Id: default" \
   -d '{"username":"admin","password":"123456"}'
 
 # 2. 带 Token 查询用户列表
-curl http://localhost:5000/api/users \
+curl http://localhost:5000/api/sys/users \
   -H "Authorization: Bearer {token}" \
   -H "X-Tenant-Id: default"
 ```

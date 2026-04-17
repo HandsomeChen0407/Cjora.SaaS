@@ -11,7 +11,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace Cjora.SaaS.Sys.Api.Controllers;
 
 [ApiController]
-[Route("api/me")]
+[Route("api/sys/me")]
 public sealed class MeController : ControllerBase
 {
     private readonly IUserAppService _users;

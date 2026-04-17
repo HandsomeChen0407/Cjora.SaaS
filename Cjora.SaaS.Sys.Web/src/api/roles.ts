@@ -17,11 +17,11 @@ export interface RoleDto {
 
 export const rolesApi = {
   getPaged: (pageNumber = 1, pageSize = 20) =>
-    api.get<ApiResult<PagedResponse<RoleDto>>>(`/api/roles?pageNumber=${pageNumber}&pageSize=${pageSize}`),
-  getById: (id: number) => api.get<ApiResult<RoleDto>>(`/api/roles/${id}`),
-  create: (data: Partial<RoleDto>) => api.post<ApiResult<RoleDto>>("/api/roles", data),
-  update: (id: number, data: Partial<RoleDto>) => api.put<ApiResult<RoleDto>>(`/api/roles/${id}`, data),
-  del: (id: number) => api.del(`/api/roles/${id}`),
+    api.get<ApiResult<PagedResponse<RoleDto>>>(`/api/sys/roles?pageNumber=${pageNumber}&pageSize=${pageSize}`),
+  getById: (id: number) => api.get<ApiResult<RoleDto>>(`/api/sys/roles/${id}`),
+  create: (data: Partial<RoleDto>) => api.post<ApiResult<RoleDto>>("/api/sys/roles", data),
+  update: (id: number, data: Partial<RoleDto>) => api.put<ApiResult<RoleDto>>(`/api/sys/roles/${id}`, data),
+  del: (id: number) => api.del(`/api/sys/roles/${id}`),
   getPermissions: (roleId: number) =>
-    api.get<ApiResult<number[]>>(`/api/roles/${roleId}/permissions`),
+    api.get<ApiResult<number[]>>(`/api/sys/roles/${roleId}/permissions`),
 };
