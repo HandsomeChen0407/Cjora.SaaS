@@ -362,3 +362,5 @@ MigrationBackup/
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
 .gitnexus
+/PostgreSQL-TimescaleDB-Production.md
+/MQTT-TCP-Ingest-Production.md
