@@ -10,6 +10,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using SqlSugar;
+using System.Data;
 
 namespace Cjora.SaaS.Sys.Startup;
 
@@ -62,7 +63,7 @@ public static class SaaSStartupValidator
         // 6) 生产环境禁止 SQLite
         var env = services.GetService<IHostEnvironment>();
         var sqlOptions = services.GetRequiredService<IOptions<SqlSugarSaaSOptions>>().Value;
-        if (env?.IsProduction() == true && sqlOptions.DbType == DbType.Sqlite)
+        if (env?.IsProduction() == true && sqlOptions.DbType == global::SqlSugar.DbType.Sqlite)
         {
             throw new InvalidOperationException("SQLite is not allowed in production.");
         }
@@ -114,6 +115,22 @@ public static class SaaSStartupValidator
 
     private static bool HasIndex(ISqlSugarClient db, string tableName, string indexName)
     {
+        if (db.CurrentConnectionConfig.DbType == global::SqlSugar.DbType.Sqlite)
+        {
+            // PRAGMA 不支持参数化表名；这里 tableName 来自程序集扫描（SugarTable.TableName/Type.Name），应保持受控。
+            var dt = db.Ado.GetDataTable($"PRAGMA index_list('{tableName}')");
+            foreach (DataRow row in dt.Rows)
+            {
+                var name = row["name"]?.ToString();
+                if (!string.IsNullOrWhiteSpace(name) && string.Equals(name, indexName, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         var list = db.DbMaintenance.GetIndexList(tableName);
         foreach (var item in list)
         {

@@ -3,7 +3,7 @@ using Cjora.SaaS.Core.SqlSugar.Abstractions;
 
 namespace Cjora.SaaS.Core.SqlSugar.Providers;
 
-internal sealed class GuardedDispatchProxy<T> : DispatchProxy where T : class
+internal class GuardedDispatchProxy<T> : DispatchProxy where T : class
 {
     private T? _inner;
     private ISqlSugarClientGuard? _guard;

@@ -1,5 +1,6 @@
 using System.Text;
 using Cjora.SaaS.Core.Extensions;
+using Cjora.SaaS.Core.MultiTenancy.Abstractions;
 using Cjora.SaaS.Core.SqlSugar.Constants;
 using Cjora.SaaS.Sys;
 using Cjora.SaaS.Sys.Api.Auth;
@@ -123,39 +124,71 @@ builder.Services.AddCjoraSaaSWithSqlSugar(
     },
     configureSqlSugar: o =>
     {
-        o.DbType = DbType.Sqlite;
-        o.MasterConnectionString = builder.Configuration.GetConnectionString("SqlSugar") ?? "DataSource=cjora_sys_api.db";
+        var cs = builder.Configuration.GetConnectionString("SqlSugar") ?? "DataSource=cjora_sys_api.db";
+        // 生产环境禁止 SQLite（在 SaaSStartupValidator 中会 Fail-Fast），这里按连接串自动推断 DbType，
+        // 避免把生产环境固定死为 Sqlite。
+        o.DbType = DetectDbType(cs, builder.Environment.IsProduction());
+        o.MasterConnectionString = cs;
         o.AutoFillCreatorUserIdOnInsert = false;
     });
 builder.Services.AddCjoraSaaSSys();
 
 var app = builder.Build();
 
-app.Services.ValidateSaaSOrThrow();
+var tenantEntityTypes = new[]
+{
+    typeof(SysUser),
+    typeof(SysRole),
+    typeof(SysDepartment),
+    typeof(SysUserRole),
+    typeof(SysRolePermission),
+    typeof(SysRoleDataScope),
+    typeof(SysDepartmentScopedSetting),
+    typeof(SysUserDataScope),
+    typeof(SysDepartmentClosure),
+    typeof(SysPermission),
+    typeof(SysDictType),
+    typeof(SysDictItem)
+};
+
+// 启动阶段没有 HttpContext；Validate 内部会解析 ISqlSugarClient（进而触发 ITenantProvider.GetTenantId）。
+// 因此必须显式绑定租户上下文。
+using (var validationScope = app.Services.CreateScope())
+{
+    using var _ = validationScope.ServiceProvider.GetRequiredService<ITenantContextSetter>().Use("default");
+    // ValidateSaaSOrThrow 内部会解析 ITenantStorageRoutingProvider（查 sys_tenant）。
+    // 因此必须确保目录库的 sys_tenant 已存在，否则会在路由阶段报 "no such table: sys_tenant"。
+    var validationCatalogDb = validationScope.ServiceProvider
+        .GetRequiredKeyedService<ISqlSugarClient>(SqlSugarKeyedServiceKeys.Catalog);
+    validationCatalogDb.CodeFirst.InitTables(typeof(SysTenant));
+
+    // ValidateSaaSOrThrow 内部会做索引校验；SQLite 下 CodeFirst 未必会创建 SugarIndex 声明的索引，
+    // 这里先初始化业务表并补齐关键索引，避免启动期直接 Fail-Fast。
+    var validationDb = validationScope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+    validationDb.CodeFirst.InitTables(tenantEntityTypes);
+    if (validationDb.CurrentConnectionConfig.DbType == DbType.Sqlite)
+    {
+        EnsureSqliteIndexes(validationDb.CurrentConnectionConfig.ConnectionString);
+    }
+
+    validationScope.ServiceProvider.ValidateSaaSOrThrow();
+}
 
 using (var scope = app.Services.CreateScope())
 {
+    // 启动阶段没有 HttpContext，所有依赖 ITenantProvider 的逻辑必须显式绑定租户上下文。
+    // 这里初始化的都是默认租户下的表结构/种子数据。
+    using var _ = scope.ServiceProvider.GetRequiredService<ITenantContextSetter>().Use("default");
+
     var catalogDb = scope.ServiceProvider.GetRequiredKeyedService<ISqlSugarClient>(SqlSugarKeyedServiceKeys.Catalog);
     catalogDb.CodeFirst.InitTables(typeof(SysTenant));
 
     var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
-    var tenantEntityTypes = new[]
-    {
-        typeof(SysUser),
-        typeof(SysRole),
-        typeof(SysDepartment),
-        typeof(SysUserRole),
-        typeof(SysRolePermission),
-        typeof(SysRoleDataScope),
-        typeof(SysDepartmentScopedSetting),
-        typeof(SysUserDataScope),
-        typeof(SysDepartmentClosure),
-        typeof(SysPermission),
-        typeof(SysDictType),
-        typeof(SysDictItem)
-    };
-
     db.CodeFirst.InitTables(tenantEntityTypes);
+    if (db.CurrentConnectionConfig.DbType == DbType.Sqlite)
+    {
+        EnsureSqliteIndexes(db.CurrentConnectionConfig.ConnectionString);
+    }
 
     DatabaseSchemaValidator.ValidateIndexes(db);
 
@@ -173,6 +206,119 @@ using (var scope = app.Services.CreateScope())
                 CancellationToken.None)
             .ConfigureAwait(false);
     }
+}
+
+static void EnsureSqliteIndexes(string connectionString)
+{
+    // 注意：这里故意使用“原始 SqlSugarClient（无 guard / 无 AOP）”来做 schema bootstrap。
+    // 否则 DbMaintenance.GetIndexList / CreateIndex 可能在一次调用中触发嵌套 SQL，
+    // 被 ISqlSugarClientGuard 误判为并发/重入而 Fail-Fast。
+    using var raw = new SqlSugarClient(new ConnectionConfig
+    {
+        DbType = DbType.Sqlite,
+        ConnectionString = connectionString,
+        IsAutoCloseConnection = true
+    });
+
+    CreateIndexIfMissing(
+        raw,
+        tableName: "sys_user_data_scope",
+        indexName: "idx_user_scope",
+        columns: new[] { "tenant_id", "user_id", "scope_type", "scope_id" });
+
+    CreateIndexIfMissing(
+        raw,
+        tableName: "sys_department_closure",
+        indexName: "idx_closure_ad",
+        columns: new[] { "tenant_id", "ancestor_id", "descendant_id" });
+
+    CreateIndexIfMissing(
+        raw,
+        tableName: "sys_department_closure",
+        indexName: "idx_closure_d",
+        columns: new[] { "descendant_id" });
+
+    CreateIndexIfMissing(
+        raw,
+        tableName: "sys_department_scoped_setting",
+        indexName: "idx_tenant_dept",
+        columns: new[] { "tenant_id", "department_id" });
+}
+
+static void CreateIndexIfMissing(ISqlSugarClient db, string tableName, string indexName, string[] columns)
+{
+    // 幂等：避免热重载/重复启动时 "index ... already exists"
+    if (HasIndex(db, tableName, indexName))
+    {
+        return;
+    }
+
+    try
+    {
+        db.DbMaintenance.CreateIndex(tableName, columns, indexName, isUnique: false);
+    }
+    catch (Exception ex) when (ex.Message.Contains("already exists", StringComparison.OrdinalIgnoreCase))
+    {
+        // SQLite: index xxx already exists（并发启动/重复触发）
+    }
+}
+
+static bool HasIndex(ISqlSugarClient db, string tableName, string indexName)
+{
+    var list = db.DbMaintenance.GetIndexList(tableName);
+    foreach (var item in list)
+    {
+        if (item is null)
+        {
+            continue;
+        }
+
+        if (item is string s)
+        {
+            if (string.Equals(s, indexName, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            continue;
+        }
+
+        var prop = item.GetType().GetProperty("IndexName");
+        var name = prop?.GetValue(item) as string;
+        if (!string.IsNullOrWhiteSpace(name) && string.Equals(name, indexName, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+static DbType DetectDbType(string connectionString, bool isProduction)
+{
+    if (string.IsNullOrWhiteSpace(connectionString))
+    {
+        return DbType.Sqlite;
+    }
+
+    // Sqlite: "DataSource=xxx.db" / "Data Source=..."
+    if (connectionString.Contains("DataSource=", StringComparison.OrdinalIgnoreCase)
+        || connectionString.Contains("Data Source=", StringComparison.OrdinalIgnoreCase))
+    {
+        // 生产环境若仍给出 Sqlite 连接串，后续启动校验会明确阻止（符合治理约束）。
+        return DbType.Sqlite;
+    }
+
+    // Postgres 常见关键字：Host / Username / Database / Port
+    if (connectionString.Contains("Host=", StringComparison.OrdinalIgnoreCase)
+        || connectionString.Contains("Username=", StringComparison.OrdinalIgnoreCase)
+        || connectionString.Contains("User ID=", StringComparison.OrdinalIgnoreCase))
+    {
+        return DbType.PostgreSQL;
+    }
+
+    // 兜底：开发环境允许按 Sqlite 跑起来；生产环境尽量不要默默猜错
+    return isProduction ? DbType.PostgreSQL : DbType.Sqlite;
 }
 
 if (app.Environment.IsDevelopment())

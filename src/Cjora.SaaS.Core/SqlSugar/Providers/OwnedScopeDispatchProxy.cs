@@ -3,7 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Cjora.SaaS.Core.SqlSugar.Providers;
 
-internal sealed class OwnedScopeDispatchProxy<T> : DispatchProxy where T : class
+internal class OwnedScopeDispatchProxy<T> : DispatchProxy where T : class
 {
     private T? _inner;
     private IServiceScope? _scope;
