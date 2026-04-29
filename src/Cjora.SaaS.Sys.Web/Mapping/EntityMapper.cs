@@ -33,6 +33,7 @@ internal static class EntityMapper
             Remark = r.Remark,
             PermissionIds = r.PermissionIds,
             DataScopeDeptIds = r.DataScopeDeptIds,
+            DataScopeAgentIds = r.DataScopeAgentIds,
             CreatorUserId = r.CreatorUserId,
             CreatedAtUtc = r.CreatedAtUtc,
             UpdatedAtUtc = r.UpdatedAtUtc

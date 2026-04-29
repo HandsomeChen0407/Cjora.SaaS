@@ -52,4 +52,7 @@ public sealed class DefaultDataPermissionContext : IDataPermissionContext
 
     /// <inheritdoc />
     public IReadOnlyList<long> AccessibleCustomerIds => Snapshot.AccessibleCustomerIds;
+
+    /// <inheritdoc />
+    public IReadOnlyList<long> AccessibleAgentIds => Snapshot.AccessibleAgentIds;
 }

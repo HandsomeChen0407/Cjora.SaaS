@@ -1,6 +1,8 @@
+using System.Globalization;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using Cjora.SaaS.Core.DataPermission.Enums;
 using Cjora.SaaS.Core.Repository.Abstractions;
 using Cjora.SaaS.Sys.Application.Users.Models;
 using Cjora.SaaS.Sys.Entities;
@@ -40,12 +42,13 @@ public sealed class JwtTokenService
         {
             var roles = await _roles.GetListAsync(r => roleIds.Contains(r.Id), cancellationToken);
 
-            var highestScope = "self";
+            DataScopeKind? widest = null;
             var superAdmin = false;
             foreach (var role in roles)
             {
                 claims.Add(new Claim("role", role.Code));
-                highestScope = GetHigherScope(highestScope, role.DataScope);
+                var mapped = MapRoleDataScope(role.DataScope);
+                widest = widest is null ? mapped : Wider(widest.Value, mapped);
                 if (role.IsSystem || string.Equals(role.Code, "super_admin", StringComparison.OrdinalIgnoreCase))
                 {
                     superAdmin = true;
@@ -57,11 +60,11 @@ public sealed class JwtTokenService
                 claims.Add(new Claim("is_super_admin", "1"));
             }
 
-            claims.Add(new Claim("data_scope", highestScope));
+            claims.Add(new Claim("data_scope", ((int)(widest ?? DataScopeKind.Self)).ToString(CultureInfo.InvariantCulture)));
         }
         else
         {
-            claims.Add(new Claim("data_scope", "self"));
+            claims.Add(new Claim("data_scope", ((int)DataScopeKind.Self).ToString(CultureInfo.InvariantCulture)));
         }
 
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_settings.Secret));
@@ -77,15 +80,30 @@ public sealed class JwtTokenService
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
 
-    private static string GetHigherScope(string current, string candidate)
-    {
-        var order = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
+    private static DataScopeKind MapRoleDataScope(string? dataScope) =>
+        dataScope?.Trim().ToLowerInvariant() switch
         {
-            ["self"] = 0, ["dept"] = 1, ["tenant"] = 2, ["all"] = 3
+            "all" => DataScopeKind.All,
+            "tenant" => DataScopeKind.Tenant,
+            "dept" => DataScopeKind.Department,
+            "agent" => DataScopeKind.Agent,
+            "self" => DataScopeKind.Self,
+            _ => DataScopeKind.Tenant
         };
 
-        var currentLevel = order.GetValueOrDefault(current, 0);
-        var candidateLevel = order.GetValueOrDefault(candidate, 0);
-        return candidateLevel > currentLevel ? candidate : current;
-    }
+    /// <summary>数值越大表示同一租户内可见数据范围越宽（多角色合并时取最宽）。</summary>
+    private static int PermissiveRank(DataScopeKind k) => k switch
+    {
+        DataScopeKind.Self => 0,
+        DataScopeKind.Agent => 1,
+        DataScopeKind.Project => 2,
+        DataScopeKind.Customer => 2,
+        DataScopeKind.Department => 3,
+        DataScopeKind.Tenant => 4,
+        DataScopeKind.All => 5,
+        _ => 0
+    };
+
+    private static DataScopeKind Wider(DataScopeKind a, DataScopeKind b) =>
+        PermissiveRank(a) >= PermissiveRank(b) ? a : b;
 }

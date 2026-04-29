@@ -37,7 +37,7 @@ Cjora.SaaS.Sys.Api
 ## 核心能力
 
 - 完整 IAM API（用户 / 角色 / 部门 / 权限 / 字典 / 租户）
-- JWT Bearer 鉴权 + `PermCode` 功能权限
+- JWT Bearer 鉴权 + `PermCode` 功能权限；`data_scope` 声明为 **DataScopeKind 整型字符串**（与 Core 解析器一致）
 - 结构化请求日志（`UseCjoraRequestLogging`），含 DataScope 领域字段
 - 分布式缓存（Memory 默认，可切换 Redis）
 - 全局 30s 请求超时（`UseRequestTimeouts`）

@@ -27,7 +27,7 @@ public sealed class SysRole : TenantCreatorEntityBase
     [SugarColumn(ColumnName = "is_active", IsNullable = false)]
     public bool IsActive { get; set; } = true;
 
-    /// <summary>数据范围：all / tenant / dept / self。</summary>
+    /// <summary>数据范围：all / tenant / dept / agent / self。</summary>
     [SugarColumn(ColumnName = "data_scope", Length = 32, IsNullable = false)]
     public string DataScope { get; set; } = "tenant";
 

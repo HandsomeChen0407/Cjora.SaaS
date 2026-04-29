@@ -34,3 +34,12 @@ public interface ICustomerScopedEntity : ITenantScopedEntity
     /// <summary>行所属客户主键。</summary>
     long CustomerId { get; set; }
 }
+
+/// <summary>
+/// 标记实体包含「代理商」维度，可在 <see cref="DataScopeKind.Agent"/> 下由服务层 <c>.WithDataPermission()</c> 追加 <c>AgentId IN (...)</c> 条件。
+/// </summary>
+public interface IAgentScopedEntity : ITenantScopedEntity
+{
+    /// <summary>行所属代理商主键，与 IAM 中代理商主数据表一致。</summary>
+    long AgentId { get; set; }
+}

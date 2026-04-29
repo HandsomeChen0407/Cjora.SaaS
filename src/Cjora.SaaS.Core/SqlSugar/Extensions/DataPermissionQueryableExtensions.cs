@@ -9,7 +9,7 @@ namespace Cjora.SaaS.Core.SqlSugar.Extensions;
 /// 服务层显式数据权限过滤扩展：根据 <see cref="IDataPermissionContext"/> 向查询追加 WHERE 条件。
 /// </summary>
 /// <remarks>
-/// 租户过滤和软删除仍由 SqlSugar 全局 QueryFilter 自动处理；本扩展仅处理行级数据权限（部门 / 项目 / 客户 / 本人）。
+/// 租户过滤和软删除仍由 SqlSugar 全局 QueryFilter 自动处理；本扩展仅处理行级数据权限（部门 / 代理商 / 项目 / 客户 / 本人）。
 /// </remarks>
 public static class DataPermissionQueryableExtensions
 {
@@ -39,6 +39,8 @@ public static class DataPermissionQueryableExtensions
                 queryable, context.AccessibleProjectIds, static e => e.ProjectId),
             DataScopeKind.Customer => ApplyIdScope<TEntity, ICustomerScopedEntity>(
                 queryable, context.AccessibleCustomerIds, static e => e.CustomerId),
+            DataScopeKind.Agent => ApplyIdScope<TEntity, IAgentScopedEntity>(
+                queryable, context.AccessibleAgentIds, static e => e.AgentId),
             _ => queryable
         };
     }
@@ -79,6 +81,7 @@ public static class DataPermissionQueryableExtensions
             var t when t == typeof(IDepartmentScopedEntity) => nameof(IDepartmentScopedEntity.DepartmentId),
             var t when t == typeof(IProjectScopedEntity) => nameof(IProjectScopedEntity.ProjectId),
             var t when t == typeof(ICustomerScopedEntity) => nameof(ICustomerScopedEntity.CustomerId),
+            var t when t == typeof(IAgentScopedEntity) => nameof(IAgentScopedEntity.AgentId),
             _ => throw new InvalidOperationException($"Unsupported scope interface: {typeof(TInterface).Name}")
         };
 

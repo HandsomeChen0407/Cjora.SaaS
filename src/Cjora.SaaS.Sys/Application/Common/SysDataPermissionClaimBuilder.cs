@@ -14,7 +14,7 @@ public static class SysDataPermissionClaimBuilder
     /// </summary>
     /// <param name="scope">数据范围。</param>
     /// <param name="accessibleDepartmentIds">
-    /// 兼容参数：企业级数据权限引擎不再把部门列表塞入 JWT；部门/项目/客户等数据域关系由数据库表在查询时实时计算。
+    /// 兼容参数：企业级数据权限引擎不再把部门/代理商等列表塞入 JWT；数据域关系由数据库表在查询时实时计算。
     /// </param>
     /// <param name="bypassRowLevelFilters">是否跳过部门/本人行级过滤器（平台运维等）。</param>
     /// <returns>声明列表。</returns>

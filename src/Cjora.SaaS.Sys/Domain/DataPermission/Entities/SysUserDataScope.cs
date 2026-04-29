@@ -15,7 +15,7 @@ public sealed class SysUserDataScope : TenantEntityBase
     public long UserId { get; set; }
 
     /// <summary>
-    /// 数据域类型：Department / Project / Customer / Custom...
+    /// 数据域类型：Department / Agent / Project / Customer / Custom...
     /// </summary>
     [SugarColumn(ColumnName = "scope_type", Length = 64, IsNullable = false)]
     public string ScopeType { get; set; } = "";

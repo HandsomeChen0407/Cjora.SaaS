@@ -143,6 +143,7 @@ var tenantEntityTypes = new[]
     typeof(SysUserRole),
     typeof(SysRolePermission),
     typeof(SysRoleDataScope),
+    typeof(SysAgent),
     typeof(SysDepartmentScopedSetting),
     typeof(SysUserDataScope),
     typeof(SysDepartmentClosure),

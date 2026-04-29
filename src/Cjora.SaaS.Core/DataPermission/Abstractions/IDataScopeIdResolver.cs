@@ -3,11 +3,11 @@ using Cjora.SaaS.Core.DataPermission.Enums;
 namespace Cjora.SaaS.Core.DataPermission.Abstractions;
 
 /// <summary>
-/// 按 <see cref="DataScopeKind"/> 解析当前用户可访问的实体主键集合（部门 / 项目 / 客户等）。
+/// 按 <see cref="DataScopeKind"/> 解析当前用户可访问的实体主键集合（部门 / 代理商 / 项目 / 客户等）。
 /// </summary>
 /// <remarks>
 /// <para>每个业务模块为其负责的 <see cref="DataScopeKind"/> 注册一个实现：
-/// Sys → Department，CRM → Customer，PM → Project。</para>
+/// Sys → Department / Agent，CRM → Customer，PM → Project。</para>
 /// <para>解析结果将被合并进 <see cref="Models.DataPermissionResult"/>，
 /// 由 <see cref="IDataPermissionContext"/> 暴露给服务层通过
 /// <c>.WithDataPermission()</c> 消费。</para>

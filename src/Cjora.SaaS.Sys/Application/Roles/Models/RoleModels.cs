@@ -10,6 +10,7 @@ public sealed record RoleVm(
     string? Remark,
     IReadOnlyList<long> PermissionIds,
     IReadOnlyList<long> DataScopeDeptIds,
+    IReadOnlyList<long> DataScopeAgentIds,
     long CreatorUserId,
     DateTime CreatedAtUtc,
     DateTime? UpdatedAtUtc);
@@ -22,7 +23,8 @@ public sealed record CreateRoleRequest(
     string DataScope,
     string? Remark,
     IReadOnlyList<long>? PermissionIds,
-    IReadOnlyList<long>? DataScopeDeptIds);
+    IReadOnlyList<long>? DataScopeDeptIds,
+    IReadOnlyList<long>? DataScopeAgentIds);
 
 public sealed record UpdateRoleRequest(
     string Name,
@@ -31,4 +33,5 @@ public sealed record UpdateRoleRequest(
     string DataScope,
     string? Remark,
     IReadOnlyList<long>? PermissionIds,
-    IReadOnlyList<long>? DataScopeDeptIds);
+    IReadOnlyList<long>? DataScopeDeptIds,
+    IReadOnlyList<long>? DataScopeAgentIds);

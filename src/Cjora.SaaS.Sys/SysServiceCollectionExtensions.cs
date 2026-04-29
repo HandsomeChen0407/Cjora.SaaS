@@ -52,6 +52,7 @@ public static class SysServiceCollectionExtensions
 
         services.ReplaceTenantStorageRoutingProvider<SysTenantTableStorageRoutingProvider>();
         services.AddScoped<IDataScopeIdResolver, DepartmentDataScopeIdResolver>();
+        services.AddScoped<IDataScopeIdResolver, AgentDataScopeIdResolver>();
 
         services.AddScoped<ISysTenantRepository, SysTenantRepository>();
 
@@ -62,6 +63,7 @@ public static class SysServiceCollectionExtensions
         services.AddSqlSugarTenantRepository<SysUserRole>();
         services.AddSqlSugarTenantRepository<SysRolePermission>();
         services.AddSqlSugarTenantRepository<SysRoleDataScope>();
+        services.AddSqlSugarTenantRepository<SysAgent>();
         services.AddSqlSugarTenantRepository<SysPermission>();
         services.AddSqlSugarTenantRepository<SysDictType>();
         services.AddSqlSugarTenantRepository<SysDictItem>();

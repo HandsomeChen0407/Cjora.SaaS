@@ -25,7 +25,8 @@ public sealed class DataPermissionResult
         long currentUserId,
         IReadOnlyList<long> accessibleDepartmentIds,
         IReadOnlyList<long> accessibleProjectIds,
-        IReadOnlyList<long> accessibleCustomerIds)
+        IReadOnlyList<long> accessibleCustomerIds,
+        IReadOnlyList<long> accessibleAgentIds)
     {
         Scope = scope;
         BypassRowLevelFilters = bypassRowLevelFilters;
@@ -33,6 +34,7 @@ public sealed class DataPermissionResult
         AccessibleDepartmentIds = accessibleDepartmentIds;
         AccessibleProjectIds = accessibleProjectIds;
         AccessibleCustomerIds = accessibleCustomerIds;
+        AccessibleAgentIds = accessibleAgentIds;
     }
 
     /// <summary>数据范围（与 <c>IDataPermissionContext.Scope</c> 语义一致）。</summary>
@@ -52,4 +54,7 @@ public sealed class DataPermissionResult
 
     /// <summary>Customer 范围下可访问的客户 Id 列表。</summary>
     public IReadOnlyList<long> AccessibleCustomerIds { get; }
+
+    /// <summary>Agent 范围下可访问的代理商 Id 列表。</summary>
+    public IReadOnlyList<long> AccessibleAgentIds { get; }
 }

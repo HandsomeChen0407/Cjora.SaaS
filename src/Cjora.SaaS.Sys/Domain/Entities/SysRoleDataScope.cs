@@ -5,7 +5,7 @@ namespace Cjora.SaaS.Sys.Entities;
 
 /// <summary>
 /// 角色级数据范围授权（当 <c>SysRole.DataScope == "dept"</c> 时的部门列表），取代原 <c>SysRole.DeptIdsJson</c>。
-/// 用户分配角色时应自动同步到 <c>sys_user_data_scope</c>，供 Core EXISTS 过滤器消费。
+/// 用户分配角色时应自动同步到 <c>sys_user_data_scope</c>，供数据权限解析器消费（部门 / 代理商等）。
 /// </summary>
 [SugarTable("sys_role_data_scope")]
 [SugarIndex("idx_sys_role_data_scope_tenant", nameof(TenantId), OrderByType.Asc)]
@@ -16,7 +16,7 @@ public sealed class SysRoleDataScope : TenantCreatorEntityBase
     [SugarColumn(ColumnName = "role_id", IsNullable = false)]
     public long RoleId { get; set; }
 
-    /// <summary>数据域类型（与 <c>SysUserDataScope.ScopeType</c> 对齐：Department / Project / Customer 等）。</summary>
+    /// <summary>数据域类型（与 <c>SysUserDataScope.ScopeType</c> 对齐：Department / Agent / Project / Customer 等）。</summary>
     [SugarColumn(ColumnName = "scope_type", Length = 64, IsNullable = false)]
     public string ScopeType { get; set; } = "";
 

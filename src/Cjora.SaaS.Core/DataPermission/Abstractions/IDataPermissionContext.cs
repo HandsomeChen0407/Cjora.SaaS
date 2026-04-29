@@ -49,4 +49,9 @@ public interface IDataPermissionContext
     /// 在 <see cref="DataScopeKind.Customer"/> 下允许访问的客户 Id 集合。
     /// </summary>
     IReadOnlyList<long> AccessibleCustomerIds { get; }
+
+    /// <summary>
+    /// 在 <see cref="DataScopeKind.Agent"/> 下允许访问的代理商 Id 集合。
+    /// </summary>
+    IReadOnlyList<long> AccessibleAgentIds { get; }
 }

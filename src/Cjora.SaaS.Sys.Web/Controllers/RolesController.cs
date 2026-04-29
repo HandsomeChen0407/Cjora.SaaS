@@ -53,7 +53,7 @@ public sealed class RolesController : ControllerBase
         {
             var id = await _roles.CreateAsync(
                 new CreateRoleRequest(request.Code, request.Name, request.IsSystem, request.IsActive,
-                    request.DataScope, request.Remark, request.PermissionIds, request.DataScopeDeptIds),
+                    request.DataScope, request.Remark, request.PermissionIds, request.DataScopeDeptIds, request.DataScopeAgentIds),
                 cancellationToken);
 
             var created = await _roles.GetByIdAsync(id, cancellationToken);
@@ -75,7 +75,7 @@ public sealed class RolesController : ControllerBase
         {
             var ok = await _roles.UpdateAsync(id,
                 new UpdateRoleRequest(request.Name, request.IsSystem, request.IsActive,
-                    request.DataScope, request.Remark, request.PermissionIds, request.DataScopeDeptIds),
+                    request.DataScope, request.Remark, request.PermissionIds, request.DataScopeDeptIds, request.DataScopeAgentIds),
                 cancellationToken);
 
             if (!ok) return NotFound(Result<SysRoleDto>.Fail("NotFound"));

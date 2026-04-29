@@ -41,6 +41,7 @@ public sealed class SysRoleDto
     public string? Remark { get; init; }
     public IReadOnlyList<long> PermissionIds { get; init; } = [];
     public IReadOnlyList<long> DataScopeDeptIds { get; init; } = [];
+    public IReadOnlyList<long> DataScopeAgentIds { get; init; } = [];
     public long CreatorUserId { get; init; }
     public DateTime CreatedAtUtc { get; init; }
     public DateTime? UpdatedAtUtc { get; init; }
@@ -56,6 +57,7 @@ public sealed class SysRoleCreateRequest
     public string? Remark { get; init; }
     public IReadOnlyList<long>? PermissionIds { get; init; }
     public IReadOnlyList<long>? DataScopeDeptIds { get; init; }
+    public IReadOnlyList<long>? DataScopeAgentIds { get; init; }
 }
 
 public sealed class SysRoleUpdateRequest
@@ -67,6 +69,7 @@ public sealed class SysRoleUpdateRequest
     public string? Remark { get; init; }
     public IReadOnlyList<long>? PermissionIds { get; init; }
     public IReadOnlyList<long>? DataScopeDeptIds { get; init; }
+    public IReadOnlyList<long>? DataScopeAgentIds { get; init; }
 }
 
 // ──── Department ────

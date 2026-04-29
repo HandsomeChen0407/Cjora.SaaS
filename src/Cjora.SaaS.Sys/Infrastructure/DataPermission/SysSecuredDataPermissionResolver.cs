@@ -51,13 +51,14 @@ public sealed class SysSecuredDataPermissionResolver : IDataPermissionResolver
         {
             return new DataPermissionResult(
                 scope, bypass, _currentUser.UserId,
-                Array.Empty<long>(), Array.Empty<long>(), Array.Empty<long>());
+                Array.Empty<long>(), Array.Empty<long>(), Array.Empty<long>(), Array.Empty<long>());
         }
 
         var tenantId = _tenantProvider.GetTenantId();
         var deptIds = (IReadOnlyList<long>)Array.Empty<long>();
         var projIds = (IReadOnlyList<long>)Array.Empty<long>();
         var custIds = (IReadOnlyList<long>)Array.Empty<long>();
+        var agentIds = (IReadOnlyList<long>)Array.Empty<long>();
 
         foreach (var resolver in _scopeIdResolvers)
         {
@@ -71,10 +72,11 @@ public sealed class SysSecuredDataPermissionResolver : IDataPermissionResolver
                 case DataScopeKind.Department: deptIds = ids; break;
                 case DataScopeKind.Project:    projIds = ids; break;
                 case DataScopeKind.Customer:   custIds = ids; break;
+                case DataScopeKind.Agent:      agentIds = ids; break;
             }
         }
 
-        return new DataPermissionResult(scope, bypass, _currentUser.UserId, deptIds, projIds, custIds);
+        return new DataPermissionResult(scope, bypass, _currentUser.UserId, deptIds, projIds, custIds, agentIds);
     }
 
     private bool ResolveBypass()

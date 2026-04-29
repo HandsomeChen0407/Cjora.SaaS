@@ -64,6 +64,7 @@ IDataPermissionContext → IDataScopeIdResolver → DataPermissionResult
 |---------------|------|-----------------|
 | `All / Tenant` | 租户内全量 | 无（不追加行级条件） |
 | `Department` | 可访问部门树 | `DepartmentDataScopeIdResolver`（Sys 提供） |
+| `Agent` | 可访问代理商子集 | `AgentDataScopeIdResolver`（Sys 提供） |
 | `Self` | 仅本人创建 | Core 内置 `ICreatorOwnedEntity` 过滤器 |
 | `Customer` | 仅本人创建的客户及子资源 | `CustomerDataScopeIdResolver`（Crm 提供） |
 | `Project` | 仅本人参与的项目及子资源 | `ProjectDataScopeIdResolver`（Pm 提供） |

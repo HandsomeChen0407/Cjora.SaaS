@@ -49,7 +49,8 @@ internal sealed class RoleAppService : IRoleAppService
         {
             Items = page.Items.Select(r => r.ToVm(
                 permMappings.Where(rp => rp.RoleId == r.Id).Select(rp => rp.PermissionId).ToList(),
-                dsMappings.Where(ds => ds.RoleId == r.Id && ds.ScopeType == "Department").Select(ds => ds.ScopeId).ToList()
+                dsMappings.Where(ds => ds.RoleId == r.Id && ds.ScopeType == "Department").Select(ds => ds.ScopeId).ToList(),
+                dsMappings.Where(ds => ds.RoleId == r.Id && ds.ScopeType == "Agent").Select(ds => ds.ScopeId).ToList()
             )).ToArray(),
             TotalCount = page.TotalCount,
             PageNumber = page.PageNumber,
@@ -64,10 +65,12 @@ internal sealed class RoleAppService : IRoleAppService
 
         var permIds = (await _rolePerms.GetListAsync(rp => rp.RoleId == id, cancellationToken))
             .Select(rp => rp.PermissionId).ToList();
-        var dsIds = (await _roleDataScopes.GetListAsync(ds => ds.RoleId == id && ds.ScopeType == "Department", cancellationToken))
+        var dsDeptIds = (await _roleDataScopes.GetListAsync(ds => ds.RoleId == id && ds.ScopeType == "Department", cancellationToken))
+            .Select(ds => ds.ScopeId).ToList();
+        var dsAgentIds = (await _roleDataScopes.GetListAsync(ds => ds.RoleId == id && ds.ScopeType == "Agent", cancellationToken))
             .Select(ds => ds.ScopeId).ToList();
 
-        return r.ToVm(permIds, dsIds);
+        return r.ToVm(permIds, dsDeptIds, dsAgentIds);
     }
 
     public async Task<long> CreateAsync(CreateRoleRequest request, CancellationToken cancellationToken = default)
@@ -76,7 +79,7 @@ internal sealed class RoleAppService : IRoleAppService
             throw new ArgumentException("Code 必填。", nameof(request));
         if (string.IsNullOrWhiteSpace(request.Name))
             throw new ArgumentException("Name 必填。", nameof(request));
-        ValidateDataScope(request.DataScope, request.DataScopeDeptIds);
+        ValidateDataScope(request.DataScope, request.DataScopeDeptIds, request.DataScopeAgentIds);
 
         var now = DateTime.UtcNow;
         var entity = new SysRole
@@ -122,6 +125,21 @@ internal sealed class RoleAppService : IRoleAppService
             }
         }
 
+        if (request.DataScope == "agent" && request.DataScopeAgentIds is { Count: > 0 })
+        {
+            foreach (var agentId in request.DataScopeAgentIds.Distinct())
+            {
+                await _roleDataScopes.InsertAsync(new SysRoleDataScope
+                {
+                    RoleId = entity.Id,
+                    ScopeType = "Agent",
+                    ScopeId = agentId,
+                    CreatorUserId = 0,
+                    CreatedAtUtc = now
+                }, cancellationToken);
+            }
+        }
+
         await _securityCache.InvalidatePermissionCachesAsync(cancellationToken).ConfigureAwait(false);
         await _securityCache.InvalidateDataPermissionCachesAsync(cancellationToken).ConfigureAwait(false);
         return entity.Id;
@@ -132,7 +150,7 @@ internal sealed class RoleAppService : IRoleAppService
         var r = await _roles.GetSingleAsync(x => x.Id == id, cancellationToken);
         if (r is null) return false;
 
-        ValidateDataScope(request.DataScope, request.DataScopeDeptIds);
+        ValidateDataScope(request.DataScope, request.DataScopeDeptIds, request.DataScopeAgentIds);
 
         r.Name = string.IsNullOrWhiteSpace(request.Name) ? r.Name : request.Name.Trim();
         r.IsSystem = request.IsSystem;
@@ -169,6 +187,22 @@ internal sealed class RoleAppService : IRoleAppService
                     RoleId = id,
                     ScopeType = "Department",
                     ScopeId = deptId,
+                    CreatorUserId = 0,
+                    CreatedAtUtc = now
+                }, cancellationToken);
+            }
+        }
+
+        if (request.DataScope == "agent" && request.DataScopeAgentIds is { Count: > 0 })
+        {
+            var now = DateTime.UtcNow;
+            foreach (var agentId in request.DataScopeAgentIds.Distinct())
+            {
+                await _roleDataScopes.InsertAsync(new SysRoleDataScope
+                {
+                    RoleId = id,
+                    ScopeType = "Agent",
+                    ScopeId = agentId,
                     CreatorUserId = 0,
                     CreatedAtUtc = now
                 }, cancellationToken);
@@ -254,18 +288,24 @@ internal sealed class RoleAppService : IRoleAppService
         }
     }
 
-    private static void ValidateDataScope(string dataScope, IReadOnlyList<long>? deptIds)
+    private static void ValidateDataScope(string dataScope, IReadOnlyList<long>? deptIds, IReadOnlyList<long>? agentIds)
     {
-        if (dataScope is not ("all" or "tenant" or "dept" or "self"))
-            throw new ArgumentException("DataScope 仅支持 all / tenant / dept / self。");
+        if (dataScope is not ("all" or "tenant" or "dept" or "agent" or "self"))
+            throw new ArgumentException("DataScope 仅支持 all / tenant / dept / agent / self。");
         if (dataScope == "dept" && (deptIds is null || deptIds.Count == 0))
             throw new ArgumentException("当 DataScope=dept 时 DataScopeDeptIds 必填。");
+        if (dataScope == "agent" && (agentIds is null || agentIds.Count == 0))
+            throw new ArgumentException("当 DataScope=agent 时 DataScopeAgentIds 必填。");
     }
 }
 
 internal static class RoleMapping
 {
-    public static RoleVm ToVm(this SysRole r, IReadOnlyList<long> permissionIds, IReadOnlyList<long> dataScopeDeptIds) =>
+    public static RoleVm ToVm(
+        this SysRole r,
+        IReadOnlyList<long> permissionIds,
+        IReadOnlyList<long> dataScopeDeptIds,
+        IReadOnlyList<long> dataScopeAgentIds) =>
         new(
             Id: r.Id,
             Code: r.Code,
@@ -276,6 +316,7 @@ internal static class RoleMapping
             Remark: r.Remark,
             PermissionIds: permissionIds,
             DataScopeDeptIds: dataScopeDeptIds,
+            DataScopeAgentIds: dataScopeAgentIds,
             CreatorUserId: r.CreatorUserId,
             CreatedAtUtc: r.CreatedAtUtc,
             UpdatedAtUtc: r.UpdatedAtUtc);

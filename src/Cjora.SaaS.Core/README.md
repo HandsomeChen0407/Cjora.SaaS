@@ -48,8 +48,8 @@ Core 不引用 Sys、Caching、Logging、Crm、Pm 中的任何程序集。
 
 ### 2. 数据权限（`DataPermission/`）
 
-- `DataScopeKind` 枚举（`All / Tenant / Department / Self / Project / Customer`）
-- `IDataPermissionContext`：当前请求已确定的数据权限视图（Scope、BypassRowLevelFilters、CurrentUserId、可访问部门列表）
+- `DataScopeKind` 枚举（`All / Tenant / Department / Self / Project / Customer / Agent`）
+- `IDataPermissionContext`：当前请求已确定的数据权限视图（Scope、BypassRowLevelFilters、CurrentUserId、可访问部门/代理商/项目/客户等 Id 列表）
 - `IDataPermissionResolver`：如何解析出 `IDataPermissionContext`（由宿主实现，默认从 JWT Claims 读取；微服务场景可替换为远程调用 IAM 服务）
 - `ISqlSugarDataPermissionFilterProvider`：可插拔的行级过滤器扩展点（ORM 层）；业务模块（Sys/Crm/Pm）各自注册
 - `IDataPermissionProvider`：**与 ORM 无关的数据权限范围提供器**（微服务演进预留）；返回 `DataPermissionGrant` 结构化数据（部门 Id 列表 / 项目 Id 列表 / 是否全量等），消费方自行决定如何转化为 WHERE 条件或 API 过滤
@@ -70,7 +70,7 @@ Core 不引用 Sys、Caching、Logging、Crm、Pm 中的任何程序集。
 2. ITenantScopedEntity → WHERE tenant_id = @current
 ```
 
-行级数据权限（部门/项目/客户/本人）不再通过 QueryFilter，而是由服务层显式调用 `.WithDataPermission(ctx)` 扩展方法附加。
+行级数据权限（部门/代理商/项目/客户/本人）不再通过 QueryFilter，而是由服务层显式调用 `.WithDataPermission(ctx)` 扩展方法附加。
 
 - `ISqlSugarClientFactory`：并发场景（Task.WhenAll）下创建相互隔离的 Client 实例
 - `ISqlSugarClientGuard`：检测同一 Client 被并发复用时抛出（AsyncLocal 实现）
@@ -148,7 +148,8 @@ var list = await _db.Queryable<SysDepartmentScopedSetting>()
 |------|------|----------|
 | 在 Core 中引用 Sys/Crm/Pm | 循环依赖，架构崩溃 | Core 只提供接口，由宿主注册实现 |
 | 多个并发 Task 共用同一 `ISqlSugarClient` | `SqlSugarClientGuard` 抛异常 | 用 `ISqlSugarClientFactory.Create()` 各自独立 |
-| JWT 颁发了 `DataScopeKind.Department` 但未注册 Sys（含 `SysSqlSugarDataPermissionFilterProvider`） | 启动时 Fail-Fast，无法创建 Client | 按 DataScope 注册足够的 Provider |
+| JWT `data_scope` 与 `DataScopeKind` 不一致（须为枚举整型或枚举名） | `SecurityException: Invalid data_scope claim` | 使用 Sys.Web 的 `JwtTokenService` 或 `SysDataPermissionClaimBuilder` 生成声明 |
+| JWT 为 `Department`/`Agent` 等需列表的范围，但未注册对应 `IDataScopeIdResolver` | 可访问 Id 为空，`.WithDataPermission()` 可能返回零行 | 调用 `AddCjoraSaaSSys()` 或自行注册解析器 |
 | 在 `IRepository` 的 predicate 里手写 `TenantId == xxx` | 仓储已自动加，条件重复（无害但多余且可能干扰可读性） | 只写业务条件 |
 | 在业务代码中直接 `new SqlSugarClient()` | 绕过所有全局 Filter 和 AOP | 通过 DI 注入 `ISqlSugarClient` |
 | 对非 SuperAdmin 用户发放 `bypass_row_filters` 声明 | 行级隔离失效，数据越权 | Sys 的 `SysSecuredDataPermissionResolver` 会拒绝并记录审计日志 |

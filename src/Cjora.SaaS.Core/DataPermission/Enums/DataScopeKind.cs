@@ -30,7 +30,7 @@ public enum DataScopeKind
     Department = 2,
 
     /// <summary>
-    /// 仅本人创建或归属的数据（依赖实体上的 <see cref="ICreatorOwnedEntity"/>）。
+    /// 仅本人创建或归属的数据（依赖实体上的 <see cref="Cjora.SaaS.Core.DataPermission.Abstractions.ICreatorOwnedEntity"/>）。
     /// </summary>
     Self = 3,
 
@@ -42,5 +42,11 @@ public enum DataScopeKind
     /// <summary>
     /// 客户域：仅可见「创建人为本人」的客户及其子资源（依赖实体上的 <see cref="Cjora.SaaS.Core.DataPermission.Abstractions.ICustomerScopedEntity"/>，由 CRM 等业务模块通过 EXISTS 实现）。
     /// </summary>
-    Customer = 5
+    Customer = 5,
+
+    /// <summary>
+    /// 代理商域：仅可见当前用户被授权的代理商及其关联业务数据（依赖实体上的 <see cref="Cjora.SaaS.Core.DataPermission.Abstractions.IAgentScopedEntity"/>；
+    /// 可访问代理商 Id 列表由宿主 IAM 通过 <see cref="Cjora.SaaS.Core.DataPermission.Abstractions.IDataScopeIdResolver"/> 解析，例如 Sys 模块的 <c>sys_user_data_scope</c>）。
+    /// </summary>
+    Agent = 6
 }

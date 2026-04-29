@@ -161,6 +161,7 @@ using (var scope = app.Services.CreateScope())
         typeof(SysUserRole),
         typeof(SysRolePermission),
         typeof(SysRoleDataScope),
+        typeof(SysAgent),
         typeof(SysDepartmentScopedSetting),
         typeof(SysUserDataScope),
         typeof(SysDepartmentClosure),
