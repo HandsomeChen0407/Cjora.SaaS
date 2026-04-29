@@ -244,6 +244,12 @@ static void EnsureSqliteIndexes(string connectionString)
         tableName: "sys_department_scoped_setting",
         indexName: "idx_tenant_dept",
         columns: new[] { "tenant_id", "department_id" });
+
+    CreateIndexIfMissing(
+        raw,
+        tableName: "sys_agent",
+        indexName: "idx_sys_agent_parent",
+        columns: new[] { "tenant_id", "parent_id" });
 }
 
 static void CreateIndexIfMissing(ISqlSugarClient db, string tableName, string indexName, string[] columns)

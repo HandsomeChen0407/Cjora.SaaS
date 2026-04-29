@@ -52,7 +52,7 @@ IDataPermissionResolver（DI 注入）
 ### 2. 行级数据域解析器（`IDataScopeIdResolver`）
 
 - **`DepartmentDataScopeIdResolver`**：处理 `DataScopeKind.Department`，基于 `sys_user_data_scope`（ScopeType=Department）与部门闭包展开可访问部门 Id。
-- **`AgentDataScopeIdResolver`**：处理 `DataScopeKind.Agent`，基于 `sys_user_data_scope`（ScopeType=Agent）列出可访问代理商 Id（与 `sys_agent` 主数据中的 Id 对齐）。
+- **`AgentDataScopeIdResolver`**：处理 `DataScopeKind.Agent`；从 `sys_user_data_scope`（ScopeType=Agent）读取**根**代理商 Id，再按 `sys_agent.parent_id` 树形展开为「根 + 全部后代」的可访问 Id 集合。
 
 二者均注册为 Scoped，与 SqlSugar Client 同生命周期。
 

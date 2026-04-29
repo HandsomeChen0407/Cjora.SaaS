@@ -64,7 +64,7 @@ public async Task<ApiResult> UpdateUser(...) { }
 
 - 签发时写入：`user_id`、`tenant_id`、`is_super_admin`、`data_scope`（**`DataScopeKind` 的整型字符串**，如部门=`2`、代理商=`6`）、`role` 等
 - 多角色时按「可见范围最宽」合并 `data_scope`（例如同时有 `self` 与 `tenant` 角色时取 `tenant`）
-- 角色 `data_scope` 字段取值：`all` / `tenant` / `dept` / `agent` / `self`；其中 `agent` 需在角色上配置 `dataScopeAgentIds` 并维护 `sys_agent` 主数据
+- 角色 `data_scope` 字段取值：`all` / `tenant` / `dept` / `agent` / `self`；其中 `agent` 需在角色上配置 `dataScopeAgentIds`（**根**代理商 Id），`sys_agent` 为树形主数据（`parent_id`），解析时会展开整棵子树
 - 配置节：`Jwt:Issuer` / `Jwt:Audience` / `Jwt:Secret` / `Jwt:ExpiresHours`
 
 ---

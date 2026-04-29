@@ -30,6 +30,11 @@ public static class DatabaseSchemaValidator
             missing.Add("sys_department_scoped_setting.idx_tenant_dept");
         }
 
+        if (!HasIndex(db, "sys_agent", "idx_sys_agent_parent"))
+        {
+            missing.Add("sys_agent.idx_sys_agent_parent");
+        }
+
         if (missing.Count > 0)
         {
             throw new Exception("Missing required indexes: " + string.Join(",", missing));
